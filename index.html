@@ -61,11 +61,13 @@
         .resizer { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 100; background: transparent; transition: 0.2s; }
         .resizer:hover, .resizing { background: rgba(0, 51, 102, 0.2); border-right: 2px solid var(--grudicom-blue); }
         
-        /* CELDAS LIBERADAS: BLANCO PURO */
+        /* CELDAS LIBERADAS: BLANCO PURO (EL BUG ESTABA AQUÍ) */
         .data-row td { background: #ffffff !important; padding: 6px 8px; vertical-align: middle; border-bottom: 1px solid var(--border-col); transition: all 0.2s ease; }
         .data-row td:first-child { border-left: 1px solid var(--border-col); border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
         .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
-        .data-row:hover td { background: #f8fafc !important; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transform: translateY(-1px); }
+        
+        /* SOLUCIÓN: SIN TRANSFORMACIONES EN HOVER */
+        .data-row:hover td { background: #f0f7ff !important; }
         
         .lost-connection-row { outline: 1px dashed #ef4444; outline-offset: -1px; border-radius: 6px;}
         .external-gps-cell { background-color: rgba(14, 165, 233, 0.05) !important; border: 1px dashed #0ea5e9 !important; border-radius: 6px; }
@@ -122,7 +124,7 @@
         <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario">
         <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
         <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
-        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.1 (Anti-Flicker)</div>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.2 (Bug Fixes)</div>
     </div>
 </div>
 
@@ -569,7 +571,7 @@
             if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
             let domAddr = document.getElementById("addr_" + vId);
             if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-            locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
+            locLink = `${addrText} \nhttps://www.google.com/maps?q=lat,lng{pos.y},${pos.x}`;
         }
 
         let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n🛣️ *Ruta:* ${v.origen||'N/A'} ➔ ${v.destino||'N/A'}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
@@ -587,7 +589,7 @@
             if (pos) {
                 let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
                 if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-                locLink = `https://www.google.com/maps?q=${pos.y},${pos.x}`;
+                locLink = `https://www.google.com/maps?q=lat,lng{pos.y},${pos.x}`;
             }
             txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${v.origen||'N/A'} ➔ ${v.destino||'N/A'}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
         });
@@ -835,7 +837,7 @@
                                     </div>
                                 </div>
                                 <div class="d-flex align-items-center w-100">
-                                    <a href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
+                                    <a href="https://www.google.com/maps?q=lat,lng{pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
                                         <div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div>
                                     </a>
                                 </div>
