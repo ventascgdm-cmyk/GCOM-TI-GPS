@@ -61,13 +61,11 @@
         .resizer { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 100; background: transparent; transition: 0.2s; }
         .resizer:hover, .resizing { background: rgba(0, 51, 102, 0.2); border-right: 2px solid var(--grudicom-blue); }
         
-        /* CELDAS LIBERADAS: BLANCO PURO (EL BUG ESTABA AQUÍ) */
+        /* CELDAS LIBERADAS: BLANCO PURO (SIN SALTOS AL PASAR EL MOUSE) */
         .data-row td { background: #ffffff !important; padding: 6px 8px; vertical-align: middle; border-bottom: 1px solid var(--border-col); transition: all 0.2s ease; }
         .data-row td:first-child { border-left: 1px solid var(--border-col); border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
         .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
-        
-        /* SOLUCIÓN: SIN TRANSFORMACIONES EN HOVER */
-        .data-row:hover td { background: #f0f7ff !important; }
+        .data-row:hover td { background: #f0f7ff !important; } /* Eliminado el transform para que los menús no fallen */
         
         .lost-connection-row { outline: 1px dashed #ef4444; outline-offset: -1px; border-radius: 6px;}
         .external-gps-cell { background-color: rgba(14, 165, 233, 0.05) !important; border: 1px dashed #0ea5e9 !important; border-radius: 6px; }
@@ -124,7 +122,7 @@
         <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario">
         <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
         <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
-        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.2 (Bug Fixes)</div>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.3 (GPS & UI Fixed)</div>
     </div>
 </div>
 
@@ -515,10 +513,17 @@
                 let isMoving = uData.pos.s > 0;
                 let colorIcon = isMoving ? '#10b981' : '#0284c7';
                 let course = uData.pos.c || 0;
+                
+                // CORRECCIÓN DE ROTACIÓN: Restamos 45 grados porque el fa-location-arrow apunta al Noreste por defecto
+                let rotation = course - 45;
+                
+                // CORRECCIÓN DE CENTRADO Y ROTACIÓN:
                 let markerHtml = isMoving 
-                    ? `<div style="transform: rotate(${course}deg); color: ${colorIcon}; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"><i class="fa-solid fa-location-arrow"></i></div>` 
-                    : `<div style="color: ${colorIcon}; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"><i class="fa-solid fa-location-dot"></i></div>`;
-                let customIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
+                    ? `<div style="transform: rotate(${rotation}deg); color: ${colorIcon}; font-size: 22px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;"><i class="fa-solid fa-location-arrow"></i></div>` 
+                    : `<div style="color: ${colorIcon}; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;"><i class="fa-solid fa-location-dot"></i></div>`;
+                
+                // CORRECCIÓN DE GLOBO POPUP: popupAnchor lo mueve arriba para no tapar la flecha
+                let customIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -14] });
                 
                 let vel = uData.pos.s;
                 let est = window.estatusData[v.estatus]?.nombre || "En Trayecto";
@@ -571,7 +576,9 @@
             if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
             let domAddr = document.getElementById("addr_" + vId);
             if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-            locLink = `${addrText} \nhttps://www.google.com/maps?q=lat,lng{pos.y},${pos.x}`;
+            
+            // CORRECCIÓN DE ENLACE GOOGLE MAPS
+            locLink = `${addrText} \nhttps://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
         }
 
         let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n🛣️ *Ruta:* ${v.origen||'N/A'} ➔ ${v.destino||'N/A'}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
@@ -589,7 +596,9 @@
             if (pos) {
                 let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
                 if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-                locLink = `https://www.google.com/maps?q=lat,lng{pos.y},${pos.x}`;
+                
+                // CORRECCIÓN DE ENLACE GOOGLE MAPS
+                locLink = `https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
             }
             txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${v.origen||'N/A'} ➔ ${v.destino||'N/A'}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
         });
@@ -825,6 +834,7 @@
                         let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : '';
                         let timeHover = formatTimeFriendly(pos.t);
                         
+                        // CORRECCIÓN DE ENLACE GOOGLE MAPS
                         elGpsCell.innerHTML = `
                             <div class="d-flex flex-column px-1 w-100">
                                 <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1">
@@ -837,7 +847,7 @@
                                     </div>
                                 </div>
                                 <div class="d-flex align-items-center w-100">
-                                    <a href="https://www.google.com/maps?q=lat,lng{pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
+                                    <a href="https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
                                         <div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div>
                                     </a>
                                 </div>
