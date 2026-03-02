@@ -122,7 +122,7 @@
         <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario">
         <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
         <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
-        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.0 (Clean Blue Edit)</div>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.1 (Anti-Flicker)</div>
     </div>
 </div>
 
@@ -265,6 +265,13 @@
     const firebaseConfig = { databaseURL: "https://monitoreo-logistica-default-rtdb.firebaseio.com/" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
+    // --- CONTROL DE PARPADEOS EN UI ---
+    let UI_PAUSED = false;
+    document.addEventListener('show.bs.dropdown', () => { UI_PAUSED = true; });
+    document.addEventListener('hide.bs.dropdown', () => { UI_PAUSED = false; setTimeout(renderizarBitacora, 100); });
+    document.addEventListener('focusin', (e) => { if(['INPUT', 'TEXTAREA'].includes(e.target.tagName)) UI_PAUSED = true; });
+    document.addEventListener('focusout', (e) => { if(['INPUT', 'TEXTAREA'].includes(e.target.tagName)) { UI_PAUSED = false; setTimeout(renderizarBitacora, 100); } });
 
     let currentUser = null, configSistema = { tokens: [] }, dataClientes = {}, viajesActivos = {};
     let unidadesGlobales = {}, ramDrivers = {}, dbOperadores = {}, geocercasNativas = [], activeSIDs = {}, pollingInterval = null;
@@ -909,7 +916,8 @@
     }
 
     function renderizarBitacora() {
-        if(document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "SELECT" || document.activeElement.tagName === "TEXTAREA" || document.querySelector('.dropdown-menu.show')) return;
+        if (UI_PAUSED) return; // <--- BLOQUEO ANTI-PARPADEO
+        
         const tbody = document.getElementById('units-body'); let html = "";
         let tree = { "Sin_Cliente": { "N/A": [] } };
         
