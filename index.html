@@ -46,7 +46,7 @@
 <div id="dashboard" style="display:none;">
     <div class="header-bar">
         <div class="d-flex align-items-center">
-            <img src="TIGPS HD2.png" alt="Logo" style="height: 60px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);" class="me-3" onerror="this.style.display='none'">
+            <img src="TIGPS HD2.png" alt="Logo" style="height: 60px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);" class="me-3 bg-white p-1" onerror="this.style.display='none'">
             <div class="d-none d-md-block">
                 <h3 class="fw-bold m-0" style="letter-spacing:-0.5px; font-size: 1.8rem; color: var(--grudicom-blue);">GRUDICOM TI & GPS <span class="text-secondary opacity-50" style="font-size: 1.3rem;">| C4</span></h3>
                 <div class="text-muted fw-bold mt-1" id="lblUsuarioActivo" style="font-size: 0.85rem;"><i class="fa-solid fa-user-shield me-1"></i> Monitor: </div>
@@ -166,12 +166,18 @@
                     </div>
                     <div class="row mb-2">
                         <div class="col-md-6">
-                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cliente:</label>
-                            <input type="text" id="nv_cliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_clientes" placeholder="Escribe el cliente...">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Seleccionar Cliente:</label>
+                            <div class="d-flex gap-2">
+                                <select id="nv_cliente" class="form-select form-select-sm bg-light fw-bold text-uppercase border-primary" onchange="cargarSubclientesNuevoViaje()"></select>
+                                <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick="promptNuevoCliente()"><i class="fa-solid fa-plus"></i></button>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Subcliente (Opcional):</label>
-                            <input type="text" id="nv_subcliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_subclientes" placeholder="Escribe el subcliente...">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Seleccionar Subcliente (Opcional):</label>
+                            <div class="d-flex gap-2">
+                                <select id="nv_subcliente" class="form-select form-select-sm bg-light fw-bold text-uppercase border-primary"></select>
+                                <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick="promptNuevoSubcliente()"><i class="fa-solid fa-plus"></i></button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -200,11 +206,11 @@
                     <div class="row mb-3">
                         <div class="col-6">
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cliente:</label>
-                            <input type="text" id="ed_cliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_clientes">
+                            <input type="text" id="ed_cliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" disabled>
                         </div>
                         <div class="col-6">
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Subcliente:</label>
-                            <input type="text" id="ed_subcliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_subclientes">
+                            <input type="text" id="ed_subcliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" disabled>
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -231,13 +237,13 @@
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-6">
-                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Asignar Operador Wialon:</label>
+                        <div class="col-12" id="ed_operador_wialon_wrapper">
+                            <label class="fw-bold text-primary mb-1" style="font-size:0.75rem;"><i class="fa-solid fa-id-badge"></i> Asignar Operador (Solo desde Wialon):</label>
                             <select id="ed_operador_wialon" class="form-select form-select-sm bg-light text-uppercase border-primary fw-bold"></select>
                         </div>
-                        <div class="col-6">
-                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">O Escribir Operador Manual:</label>
-                            <input type="text" id="ed_operador" class="form-control form-control-sm bg-light text-uppercase" list="listaConductores" placeholder="Solo si no está en Wialon">
+                        <div class="col-12" id="ed_operador_manual_wrapper" style="display:none;">
+                            <label class="fw-bold text-info mb-1" style="font-size:0.75rem;"><i class="fa-solid fa-id-badge"></i> Operador Externo (Manual):</label>
+                            <input type="text" id="ed_operador" class="form-control form-control-sm bg-light text-uppercase border-info">
                         </div>
                     </div>
 
@@ -259,7 +265,7 @@
                 <div id="log_container" class="mb-3 bg-white border border-light rounded-4 p-2 shadow-sm" style="height:200px; overflow-y:auto; font-size:0.75rem;"></div>
                 <input type="hidden" id="log_uid">
                 <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden">
-                    <input type="text" id="log_txt" class="form-control border-0 text-uppercase bg-white px-3" placeholder="Nota de justificación / evento...">
+                    <input type="text" id="log_txt" class="form-control border-0 text-uppercase bg-white px-3" placeholder="Escribe nota o justificación...">
                     <button class="btn btn-primary fw-bold px-3" onclick="guardarLogManual()"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
@@ -271,10 +277,7 @@
 
 <div class="modal fade" id="modalAdmin" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-danger text-white border-0 py-2"><h6 class="modal-title fw-bold m-0">ADMINISTRACIÓN MAESTRA</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light rounded-bottom-4 p-3"><div class="row g-2"><div class="col-lg-2 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Tokens GPS</h6><input type="text" id="tk_nom" class="form-control form-control-sm mb-1 bg-light" placeholder="Ej. RACEL"><input type="text" id="tk_url" class="form-control form-control-sm mb-1 bg-light" value="https://hst-api.wialon.com"><input type="text" id="tk_val" class="form-control form-control-sm mb-1 bg-light" placeholder="Token Largo"><button class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0" onclick="agregarToken()">Guardar</button><ul class="list-group list-group-sm mt-2" id="listaTokensActivos" style="font-size:0.7rem;"></ul></div></div><div class="col-lg-3 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Operadores Manuales</h6><input class="form-control form-control-sm mb-1 bg-light" list="listaUnidadesTotales" id="op_unidad" placeholder="Unidad" autocomplete="off"><input type="text" id="op_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Nombre Chófer"><button onclick="vincularOperador()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Vincular</button><ul class="list-group list-group-sm mt-2" id="listaOperadoresAdmin" style="font-size:0.7rem;"></ul></div></div><div class="col-lg-2 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Clientes</h6><input type="text" id="cli_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Empresa"><input type="file" id="cli_logo_file" accept="image/*" class="form-control form-control-sm mb-1 bg-light" title="Seleccionar Logo" style="font-size:0.6rem;"><button onclick="crearCliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button><ul class="list-group list-group-sm mt-2" id="listaClientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul></div></div><div class="col-lg-2 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Subclientes</h6><select id="sub_clientePadre" class="form-select form-select-sm mb-1 bg-light"></select><input type="text" id="sub_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Sub-empresa"><button onclick="crearSubcliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button><ul class="list-group list-group-sm mt-2" id="listaSubclientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul></div></div><div class="col-lg-3 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Monitoristas</h6><input type="text" id="usr_id" class="form-control form-control-sm mb-1 bg-light" placeholder="Usuario (login)"><input type="text" id="usr_nom" class="form-control form-control-sm mb-1 bg-light" placeholder="Nombre completo"><input type="text" id="usr_pass" class="form-control form-control-sm mb-1 bg-light" placeholder="Contraseña"><button onclick="crearUsuario()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Crear</button><ul class="list-group list-group-sm mt-2" id="listaUsuariosAdmin" style="font-size:0.7rem;"></ul></div></div></div></div></div></div></div>
 
-<datalist id="list_clientes"></datalist>
-<datalist id="list_subclientes"></datalist>
 <datalist id="listaGeocercas"></datalist>
-<datalist id="listaConductores"></datalist>
 <datalist id="listaUnidadesTotales"></datalist>
 
 <script src="app.js"></script>
