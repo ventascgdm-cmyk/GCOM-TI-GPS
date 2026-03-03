@@ -146,7 +146,11 @@
                 <input type="hidden" id="eh_txtVacio">
                 <label class="fw-bold text-secondary mb-2" style="font-size:0.75rem;">Selecciona la fecha y hora correcta:</label>
                 <input type="datetime-local" id="eh_input" class="form-control form-control-lg fw-bold text-center border-primary shadow-sm mb-3" style="font-size:0.9rem;">
-                <button class="btn btn-success w-100 fw-bold rounded-pill shadow" onclick="guardarHorarioModal()"><i class="fa-solid fa-check-circle me-1"></i> CONFIRMAR CAMBIO</button>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger w-50 fw-bold rounded-pill shadow-sm" onclick="borrarHorarioModal()" title="Eliminar este horario"><i class="fa-solid fa-trash me-1"></i> Borrar</button>
+                    <button class="btn btn-success w-50 fw-bold rounded-pill shadow-sm" onclick="guardarHorarioModal()"><i class="fa-solid fa-check me-1"></i> Guardar</button>
+                </div>
             </div>
         </div>
     </div>
@@ -302,3 +306,4 @@
 <script src="app.js"></script>
 </body>
 </html>
+
