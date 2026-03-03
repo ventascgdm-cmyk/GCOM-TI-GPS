@@ -32,153 +32,33 @@
             --accent: #0284c7;
         }
         
-        body { 
-            background: var(--bg-main); 
-            color: var(--text-main); 
-            font-family: 'Inter', sans-serif; 
-            font-size: 0.75rem; 
-            margin: 0; 
-            padding: 0; 
-            height: 100vh; 
-            overflow: hidden !important; 
-            display: flex; 
-            flex-direction: column; 
-        }
+        body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter', sans-serif; font-size: 0.75rem; margin: 0; padding: 0; height: 100vh; overflow: hidden !important; display: flex; flex-direction: column; }
         
         /* LOGIN */
-        .login-bg { 
-            background: linear-gradient(135deg, var(--grudicom-blue) 0%, #001a33 100%); 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            z-index: 9999; 
-        }
-        .login-card { 
-            background: var(--bg-card); 
-            color: var(--text-main); 
-            width: 380px; 
-            border-radius: 16px; 
-            padding: 40px; 
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-        }
+        .login-bg { background: linear-gradient(135deg, var(--grudicom-blue) 0%, #001a33 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; }
+        .login-card { background: var(--bg-card); color: var(--text-main); width: 380px; border-radius: 16px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);}
         
-        #dashboard { 
-            display: flex; 
-            flex-direction: column; 
-            flex: 1; 
-            height: 100%; 
-            overflow: hidden; 
-        }
-        .header-bar { 
-            background: var(--bg-card); 
-            padding: 8px 24px; 
-            border-bottom: 3px solid var(--grudicom-blue); 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
-            flex-shrink: 0; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-        }
+        #dashboard { display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden; }
+        .header-bar { background: var(--bg-card); padding: 8px 24px; border-bottom: 3px solid var(--grudicom-blue); box-shadow: 0 2px 10px rgba(0,0,0,0.05); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
         
-        .workspace-container { 
-            display: flex; 
-            flex-direction: column; 
-            flex: 1; 
-            width: 100%; 
-            overflow: hidden; 
-        }
-        .map-panel { 
-            flex-basis: 0%; 
-            height: 0; 
-            overflow: hidden; 
-            transition: all 0.4s ease; 
-            border-bottom: 0px solid var(--accent); 
-            flex-shrink: 0;
-        }
-        .workspace-container.show-map .map-panel { 
-            flex-basis: 40%; 
-            height: 40%; 
-            border-bottom: 3px solid var(--grudicom-blue); 
-        }
-        #map { 
-            width: 100%; 
-            height: 100%; 
-            z-index: 1;
-        }
+        .workspace-container { display: flex; flex-direction: column; flex: 1; width: 100%; overflow: hidden; }
+        .map-panel { flex-basis: 0%; height: 0; overflow: hidden; transition: all 0.4s ease; border-bottom: 0px solid var(--accent); flex-shrink: 0;}
+        .workspace-container.show-map .map-panel { flex-basis: 40%; height: 40%; border-bottom: 3px solid var(--grudicom-blue); }
+        #map { width: 100%; height: 100%; z-index: 1;}
         
         /* TABLA Y SCROLL */
-        .table-panel { 
-            display: flex; 
-            flex-direction: column; 
-            flex: 1; 
-            padding: 10px; 
-            overflow: hidden; 
-        }
-        .table-wrapper { 
-            flex: 1; 
-            overflow-y: auto; 
-            overflow-x: auto; 
-            border-radius: 6px; 
-            padding-bottom: 150px; 
-        }
-        
-        .table-custom { 
-            width: max-content; 
-            min-width: 100%; 
-            border-collapse: separate; 
-            border-spacing: 0 3px; 
-            margin-top: 0; 
-            table-layout: fixed; 
-        }
+        .table-panel { display: flex; flex-direction: column; flex: 1; padding: 10px; overflow: hidden; }
+        .table-wrapper { flex: 1; overflow-y: auto; overflow-x: auto; border-radius: 6px; padding-bottom: 150px; }
+        .table-custom { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0 3px; margin-top: 0; table-layout: fixed; }
         
         /* ENCABEZADOS DE COLUMNAS */
-        .header-columnas th { 
-            background: #f8fafc; 
-            color: var(--grudicom-blue); 
-            font-size: 0.65rem; 
-            font-weight: 800; 
-            text-align: center; 
-            vertical-align: middle; 
-            padding: 8px 4px; 
-            text-transform: uppercase; 
-            letter-spacing: 0.05em;
-            position: sticky; 
-            top: 0; 
-            z-index: 10; 
-            border-bottom: 2px solid var(--grudicom-blue); 
-            white-space: nowrap; 
-            user-select: none;
-        }
+        .header-columnas th { background: #f8fafc; color: var(--grudicom-blue); font-size: 0.65rem; font-weight: 800; text-align: center; vertical-align: middle; padding: 8px 4px; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid var(--grudicom-blue); white-space: nowrap; user-select: none; }
         
-        .resizer { 
-            position: absolute; 
-            right: 0; 
-            top: 0; 
-            width: 6px; 
-            height: 100%; 
-            cursor: col-resize; 
-            z-index: 100; 
-            background: transparent; 
-            transition: 0.2s; 
-        }
-        .resizer:hover, .resizing { 
-            background: rgba(0, 51, 102, 0.2); 
-            border-right: 2px solid var(--grudicom-blue); 
-        }
+        .resizer { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 100; background: transparent; transition: 0.2s; }
+        .resizer:hover, .resizing { background: rgba(0, 51, 102, 0.2); border-right: 2px solid var(--grudicom-blue); }
         
-        /* CELDAS LIBERADAS: BLANCO PURO */
-        .data-row td { 
-            background: #ffffff !important; 
-            padding: 6px 8px; 
-            vertical-align: middle; 
-            border-bottom: 1px solid var(--border-col); 
-            transition: all 0.2s ease; 
-        }
+        /* CELDAS LIBERADAS */
+        .data-row td { background: #ffffff !important; padding: 6px 8px; vertical-align: middle; border-bottom: 1px solid var(--border-col); transition: all 0.2s ease; }
         .data-row td:first-child { border-left: 1px solid var(--border-col); border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
         .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
         .data-row:hover td { background: #f0f7ff !important; }
@@ -188,45 +68,13 @@
         .stale-row td { background-color: #fef2f2 !important; border-bottom: 1px dashed #ef4444;}
         
         /* ENCABEZADOS CLIENTE */
-        .header-cliente td { 
-            background: var(--grudicom-blue) !important; 
-            color: #ffffff !important; 
-            padding: 12px 15px !important; 
-            border: none !important; 
-            border-radius: 6px; 
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
-            text-align: center;
-        }
-        .header-subcliente td { 
-            background: #e2e8f0 !important; 
-            color: var(--grudicom-blue) !important; 
-            font-size: 0.95rem; 
-            font-weight: 800; 
-            padding: 6px 10px !important; 
-            border: none !important; 
-            text-align: center; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px; 
-            border-radius: 4px;
-        }
+        .header-cliente td { background: var(--grudicom-blue) !important; color: #ffffff !important; padding: 12px 15px !important; border: none !important; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); text-align: center; }
+        .header-subcliente td { background: #e2e8f0 !important; color: var(--grudicom-blue) !important; font-size: 0.95rem; font-weight: 800; padding: 6px 10px !important; border: none !important; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 4px; }
         
         .client-logo { height: 45px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 6px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .client-logo-sub { height: 25px; max-width: 100px; object-fit: contain; vertical-align: middle; margin-right: 10px; border-radius: 4px; background: white; padding: 2px; }
 
-        .input-ghost { 
-            border: 1px solid transparent; 
-            background: transparent; 
-            border-radius: 4px; 
-            padding: 2px 4px; 
-            width: 100%; 
-            font-size: 0.7rem; 
-            font-weight: 700; 
-            color: inherit; 
-            text-transform: uppercase; 
-            text-align: center; 
-            transition: all 0.2s; 
-            outline: none; 
-        }
+        .input-ghost { border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 2px 4px; width: 100%; font-size: 0.7rem; font-weight: 700; color: inherit; text-transform: uppercase; text-align: center; transition: all 0.2s; outline: none; }
         .input-ghost:hover { border-color: var(--border-col); background: rgba(241, 245, 249, 0.8); }
         .input-ghost:focus { border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); }
         
@@ -253,60 +101,15 @@
         .leaflet-popup-content { margin: 10px 15px; line-height: 1.2; }
 
         /* Estilos para los Chips de Destinos */
-        .chip { 
-            display: inline-flex; 
-            align-items: center; 
-            background-color: #e0f2fe; 
-            color: #0284c7; 
-            padding: 4px 10px; 
-            border-radius: 16px; 
-            font-size: 0.75rem; 
-            font-weight: bold; 
-            margin: 2px; 
-            border: 1px solid #bae6fd; 
-        }
-        .chip-close { 
-            cursor: pointer; 
-            margin-left: 6px; 
-            font-size: 0.8rem; 
-            opacity: 0.6; 
-        }
-        .chip-close:hover { 
-            opacity: 1; 
-            color: #b91c1c; 
-        }
-        .chips-container { 
-            display: flex; 
-            flex-wrap: wrap; 
-            align-items: center; 
-            min-height: 38px; 
-            border: 1px solid #ced4da; 
-            border-radius: 0.25rem; 
-            padding: 2px 6px; 
-            background-color: #f8fafc; 
-            cursor: text; 
-        }
-        .chips-container input { 
-            border: none; 
-            outline: none; 
-            background: transparent; 
-            flex-grow: 1; 
-            min-width: 100px; 
-            padding: 4px; 
-            font-size: 0.75rem; 
-            text-transform: uppercase; 
-        }
+        .chip { display: inline-flex; align-items: center; background-color: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 16px; font-size: 0.75rem; font-weight: bold; margin: 2px; border: 1px solid #bae6fd; }
+        .chip-close { cursor: pointer; margin-left: 6px; font-size: 0.8rem; opacity: 0.6; }
+        .chip-close:hover { opacity: 1; color: #b91c1c; }
+        .chips-container { display: flex; flex-wrap: wrap; align-items: center; min-height: 38px; border: 1px solid #ced4da; border-radius: 0.25rem; padding: 2px 6px; background-color: #f8fafc; cursor: text; }
+        .chips-container input { border: none; outline: none; background: transparent; flex-grow: 1; min-width: 100px; padding: 4px; font-size: 0.75rem; text-transform: uppercase; }
         
         /* Acordeon de Rutas Animado */
-        .tramo-historial { 
-            max-height: 0; 
-            overflow: hidden; 
-            transition: max-height 0.3s ease-out; 
-        }
-        .tramo-historial.expanded { 
-            max-height: 300px; 
-            overflow-y: auto;
-        }
+        .tramo-historial { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .tramo-historial.expanded { max-height: 300px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -318,7 +121,7 @@
         <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario">
         <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
         <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
-        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master (Chips & Multi-Ruta)</div>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master (Validado & Minimal)</div>
     </div>
 </div>
 
@@ -395,7 +198,7 @@
 </div>
 
 <div class="modal fade" id="modalNuevoViaje" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header text-white border-0 py-3" style="background: var(--grudicom-blue);">
                 <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-truck-fast me-2"></i> REGISTRO BATCH DE VIAJES</h6>
@@ -431,7 +234,7 @@
 </div>
 
 <div class="modal fade" id="modalEditarViaje" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header text-white border-0 py-3" style="background: var(--grudicom-blue);">
                 <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-pencil me-2"></i> EDITAR VIAJE: <span id="edU_name" class="text-info"></span></h6>
@@ -455,11 +258,15 @@
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Origen (Inicial):</label>
                             <input type="text" id="ed_origen" class="form-control form-control-sm bg-light text-uppercase" list="listaGeocercas">
                         </div>
-                        <div class="col-12">
+                        <div class="col-12 mb-2">
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Destino(s): <span class="text-muted fw-normal" style="font-size:0.65rem;">(Presiona Enter para agregar)</span></label>
                             <div class="chips-container" id="ed_chips_box" onclick="document.getElementById('ed_destino_input').focus()">
-                                <input type="text" id="ed_destino_input" placeholder="Escribe destino y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_box', edChipsArray)">
+                                <input type="text" id="ed_destino_input" list="listaGeocercas" placeholder="Escribe destino y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_box', edChipsArray)">
                             </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Contenedores / Caja:</label>
+                            <input type="text" id="ed_contenedores" class="form-control form-control-sm bg-light text-uppercase" placeholder="Detalle de contenedores">
                         </div>
                     </div>
                     <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Operador Manual (Opcional):</label>
@@ -538,7 +345,6 @@
                             <input type="text" id="cli_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Empresa">
                             <input type="file" id="cli_logo_file" accept="image/*" class="form-control form-control-sm mb-1 bg-light" title="Seleccionar Logo" style="font-size:0.6rem;">
                             <button onclick="crearCliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button>
-                            <input type="file" id="edit_cli_logo_file" accept="image/*" style="display:none;" onchange="if(this.files && this.files[0] && window.currentEditCli){let reader = new FileReader(); reader.onload = e => {db.ref('clientes/' + window.currentEditCli).update({logo: e.target.result}); this.value = '';}; reader.readAsDataURL(this.files[0]);} ">
                             <ul class="list-group list-group-sm mt-2" id="listaClientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul>
                         </div>
                     </div>
@@ -613,12 +419,11 @@
     // CHIPS ARRAYS (Para Modal Editar)
     let edChipsArray = [];
 
-    // --- PRIORIDADES ESTRICTAS DE COLUMNAS ---
+    // --- PRIORIDADES ESTRICTAS DE COLUMNAS (CONTENEDORES ELIMINADO) ---
     const columnasDef = {
-        'col-unidad': { titulo: 'UNIDAD', ancho: '110' },
+        'col-unidad': { titulo: 'UNIDAD', ancho: '140' },
         'col-operador': { titulo: 'OPERADOR GPS', ancho: '150' },
-        'col-ruta': { titulo: 'RUTA (O ➔ D)', ancho: '180' },
-        'col-contenedores': { titulo: 'CONTENEDORES', ancho: '110' },
+        'col-ruta': { titulo: 'RUTA (O ➔ D)', ancho: '190' },
         'col-horarios': { titulo: 'HORARIOS', ancho: '95' }, 
         'col-estatus': { titulo: 'ESTATUS', ancho: '120' },
         'col-gps': { titulo: 'UBICACIÓN Y GEOCERCA', ancho: '420' }, 
@@ -628,12 +433,13 @@
     };
     
     let colOrder = JSON.parse(localStorage.getItem('tms_colOrder'));
+    // Verificar que el orden guardado coincida con las nuevas columnas (por si borró una)
     if (!colOrder || colOrder.length !== Object.keys(columnasDef).length) {
         colOrder = Object.keys(columnasDef);
+        localStorage.setItem('tms_colOrder', JSON.stringify(colOrder));
     }
 
     let hiddenCols = JSON.parse(localStorage.getItem('tms_hiddenCols')) || { 
-        'col-contenedores': false, 
         'col-alertas': false, 
         'col-historial': false 
     };
@@ -955,15 +761,28 @@
         });
     }
 
+    // MAPA INTELIGENTE: Sólo pinta las geocercas involucradas en los viajes activos
     function pintarGeocercasEnMapa() {
         if(!lmap || !geofenceLayerGroup) return; 
         geofenceLayerGroup.clearLayers();
+        
+        let geocercasActivasNombres = new Set();
+        
+        Object.values(viajesActivos).forEach(v => {
+            if(typeof v !== 'object' || !v) return;
+            if(v.origen) geocercasActivasNombres.add(String(v.origen).toUpperCase());
+            let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim().toUpperCase()) : []);
+            arrDests.forEach(d => geocercasActivasNombres.add(d));
+        });
+
         geocercasNativas.forEach(z => {
-            let colorHex = z.c ? `#${z.c.toString(16).padStart(6, '0')}` : '#3b82f6';
-            if(z.t === 3 && z.p && z.p[0]) {
-                L.circle([z.p[0].y, z.p[0].x], {radius: z.p[0].r, color: colorHex, weight: 2, fillOpacity: 0.15}).bindTooltip(z.n).addTo(geofenceLayerGroup);
-            } else if((z.t === 1 || z.t === 2) && z.p) {
-                L.polygon(z.p.map(pt => [pt.y, pt.x]), {color: colorHex, weight: 2, fillOpacity: 0.15}).bindTooltip(z.n).addTo(geofenceLayerGroup);
+            if(geocercasActivasNombres.has(String(z.n).toUpperCase())) {
+                let colorHex = z.c ? `#${z.c.toString(16).padStart(6, '0')}` : '#3b82f6';
+                if(z.t === 3 && z.p && z.p[0]) {
+                    L.circle([z.p[0].y, z.p[0].x], {radius: z.p[0].r, color: colorHex, weight: 2, fillOpacity: 0.15}).bindTooltip(z.n).addTo(geofenceLayerGroup);
+                } else if((z.t === 1 || z.t === 2) && z.p) {
+                    L.polygon(z.p.map(pt => [pt.y, pt.x]), {color: colorHex, weight: 2, fillOpacity: 0.15}).bindTooltip(z.n).addTo(geofenceLayerGroup);
+                }
             }
         });
     }
@@ -1206,7 +1025,7 @@
         }
     }
 
-    // --- MULTI DESTINOS CORE ---
+    // --- MULTI DESTINOS CORE Y HORARIOS ---
     window.avanzarMultiDestino = function(vId) {
         let v = viajesActivos[vId]; 
         if (!v) return;
@@ -1216,33 +1035,38 @@
         let currentIdx = v.destino_idx || 0;
         let now = Date.now();
         
-        if (currentIdx < totalDests - 1) {
-            let updates = {};
-            registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, arrDests[currentIdx]);
-            
-            // Guardar Historial de Tramos (Para el Acordeón)
-            let tramoRef = `historial_tramos/${currentIdx}`;
-            updates[tramoRef] = { 
-                destino: arrDests[currentIdx], 
-                t_salida: v.t_salida || null, 
-                t_arribo: v.t_arribo || null, 
-                t_fin: v.t_fin || null 
-            };
-            
-            updates['destino_idx'] = currentIdx + 1;
-            updates['origen_actual'] = arrDests[currentIdx]; // El origen ahora es donde acabo de llegar
-            updates['t_salida'] = now; // Auto-marcamos la nueva salida
-            updates['t_arribo'] = null; // Limpiamos arribo
-            updates['t_fin'] = null; // Limpiamos fin
-            updates['is_transit'] = true; // Para que el boton se pinte de naranja
-            
-            db.ref(`viajes_activos/${vId}`).update(updates);
-        }
+        // Registrar la hora final del tramo al darle al boton
+        db.ref(`viajes_activos/${vId}/t_fin`).set(now);
+        
+        setTimeout(() => {
+            if (currentIdx < totalDests - 1) {
+                let updates = {};
+                registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, arrDests[currentIdx]);
+                
+                // Guardar Historial de Tramos 
+                let tramoRef = `historial_tramos/${currentIdx}`;
+                updates[tramoRef] = { 
+                    destino: arrDests[currentIdx], 
+                    t_salida: v.t_salida || null, 
+                    t_arribo: v.t_arribo || null, 
+                    t_fin: now // Ponemos la hora recién capturada
+                };
+                
+                updates['destino_idx'] = currentIdx + 1;
+                updates['origen_actual'] = arrDests[currentIdx]; // El origen ahora es donde acabo de llegar
+                updates['t_salida'] = now; // Auto-marcamos la nueva salida para la prox etapa
+                updates['t_arribo'] = null; // Limpiamos arribo
+                updates['t_fin'] = null; // Limpiamos fin
+                updates['is_transit'] = true; // Para que el boton de Salida se pinte de naranja
+                
+                db.ref(`viajes_activos/${vId}`).update(updates);
+            }
+        }, 300);
     };
 
     function marcarSalida(vId, cIdx) {
         let updates = { t_salida: Date.now() };
-        // Si es el primerísimo destino, guardamos la hora maestra de salida_origen
+        // Si es el primerísimo destino, guardamos la hora maestra
         if (cIdx === 0) updates['t_salida_origen'] = Date.now();
         db.ref(`viajes_activos/${vId}`).update(updates);
         registrarLog(vId, 'Marcó SALIDA');
@@ -1252,7 +1076,7 @@
         let colorFinal = isTransit ? 'warning' : claseColor;
         let onClk = onClickOverride ? onClickOverride : `registrarLog('${vId}', 'Marcó ${textoVacio}'); db.ref('viajes_activos/${vId}/${dbField}').set(Date.now());`;
         
-        // Excepción de lógica especial de Salida
+        // Excepción lógica especial de Salida
         if (dbField === 't_salida' && !onClickOverride) { 
             onClk = `marcarSalida('${vId}', ${viajesActivos[vId]?.destino_idx || 0})`; 
         }
@@ -1275,7 +1099,7 @@
         }
     }
 
-    // --- NUEVO SISTEMA BATCH (MÚLTIPLES UNIDADES) ---
+    // --- NUEVO SISTEMA BATCH (VALIDACIÓN ESTRICTA) ---
     function prepararNuevoViaje() { 
         let listCli = document.getElementById("list_clientes"); 
         if(!listCli) { 
@@ -1325,24 +1149,26 @@
                 <div class="col-5">
                     <label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">DESTINO(S) <span class="fw-normal">(Da Enter)</span></label>
                     <div class="chips-container" id="${boxId}" onclick="this.querySelector('input').focus()">
-                        <input type="text" placeholder="Destino y Enter..." class="nv-destino-input" onkeydown="manejarChipInput(event, '${boxId}', document.getElementById('${boxId}').chipData)">
+                        <input type="text" list="listaGeocercas" placeholder="Destino y Enter..." class="nv-destino-input" onkeydown="manejarChipInput(event, '${boxId}', document.getElementById('${boxId}').chipData)">
                     </div>
                 </div>
             </div>
-            <div class="row gx-2 mt-2 nv-operador-row" style="display:${isExterna ? 'flex' : 'none'};">
-                <div class="col-12">
-                    <input type="text" class="form-control form-control-sm text-uppercase nv-operador" list="listaConductores" placeholder="Nombre de Operador (Requerido para manuales)">
+            <div class="row gx-2 mt-2 align-items-end">
+                <div class="col-6 nv-operador-row" style="display:${isExterna ? 'block' : 'none'};">
+                    <input type="text" class="form-control form-control-sm text-uppercase nv-operador" list="listaConductores" placeholder="Nombre Operador">
+                </div>
+                <div class="col-6">
+                    <input type="text" class="form-control form-control-sm text-uppercase nv-contenedores" placeholder="Contenedores / Caja (Opcional)">
                 </div>
             </div>
         `;
         document.getElementById("nv_filas_container").appendChild(div);
         
-        // Inicializar arreglo de chips para esta fila
         document.getElementById(boxId).chipData = [];
     }
 
     document.getElementById('nv_externa').addEventListener('change', function() { 
-        document.querySelectorAll('.nv-operador-row').forEach(el => el.style.display = this.checked ? 'flex' : 'none'); 
+        document.querySelectorAll('.nv-operador-row').forEach(el => el.style.display = this.checked ? 'block' : 'none'); 
     });
     
     function autofillOp(inputEl) { 
@@ -1383,27 +1209,46 @@
         if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
         
         let batchPromises = [];
+        let errorFound = false;
+
         filas.forEach(fila => {
+            if(errorFound) return;
+
             let uInput = fila.querySelector(".nv-unidad").value.trim().toUpperCase(); 
             let opInput = fila.querySelector(".nv-operador").value.trim().toUpperCase();
             let origen = fila.querySelector(".nv-origen").value.trim().toUpperCase();
+            let contenedores = fila.querySelector(".nv-contenedores").value.trim().toUpperCase();
             
-            // Obtener array de destinos
             let boxId = fila.querySelector('.chips-container').id;
             let destArr = document.getElementById(boxId).chipData || [];
-            if(destArr.length === 0) return; // Omitir si no hay destinos
             
-            if(!uInput) return;
+            if(destArr.length === 0) { 
+                alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); 
+                errorFound = true; return; 
+            }
+            if(!uInput) { 
+                alert("El nombre de la unidad no puede estar vacío"); 
+                errorFound = true; return; 
+            }
             
             let wId = "EXTERNO";
+            // VALIDACIÓN ESTRICTA DE WIALON
             if (!isExterna) { 
                 let nNorm = uInput.replace(/[\s\-]/g, ""); 
+                let foundWialon = false;
                 for(let k in unidadesGlobales){ 
                     if(String(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { 
                         wId = k; 
-                        uInput = unidadesGlobales[k].name; break; 
+                        uInput = unidadesGlobales[k].name; 
+                        foundWialon = true;
+                        break; 
                     } 
                 } 
+                if(!foundWialon) {
+                    alert(`ERROR: La unidad "${uInput}" no existe en tus plataformas Wialon.\n\nRevisa el nombre de la lista, o si es externa, activa el interruptor "MODO EXTERNO" arriba.`);
+                    errorFound = true;
+                    return;
+                }
             }
             
             let refPush = db.ref('viajes_activos').push();
@@ -1417,6 +1262,7 @@
                 destino_idx: 0, 
                 estatus: "s1", 
                 operador: opInput, 
+                contenedores: contenedores,
                 unidadFallback: uInput, 
                 unidadN: uInput 
             }).then(() => {
@@ -1425,6 +1271,8 @@
             batchPromises.push(p);
         });
         
+        if(errorFound) return;
+
         Promise.all(batchPromises).then(() => { 
             try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){} 
         });
@@ -1437,6 +1285,7 @@
         document.getElementById("edU_name").innerText = uName; 
         document.getElementById("ed_operador").value = v.operador || ""; 
         document.getElementById("ed_origen").value = v.origen || ""; 
+        document.getElementById("ed_contenedores").value = v.contenedores || ""; 
         
         let cName = (v.cliente && v.cliente !== "Sin_Cliente" && dataClientes[v.cliente]) ? dataClientes[v.cliente].nombre : "";
         let sName = (v.subcliente && v.subcliente !== "N/A" && dataClientes[v.cliente] && dataClientes[v.cliente].subclientes && dataClientes[v.cliente].subclientes[v.subcliente]) ? dataClientes[v.cliente].subclientes[v.subcliente].nombre : "";
@@ -1468,22 +1317,11 @@
             subcliente: sId, 
             origen: document.getElementById("ed_origen").value.toUpperCase(), 
             destinos: edChipsArray, 
+            contenedores: document.getElementById("ed_contenedores").value.toUpperCase(),
             operador: document.getElementById("ed_operador").value.toUpperCase() 
         }).then(() => { 
             try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} 
         }); 
-    }
-
-    function finalizarViaje(id, n) { 
-        if(confirm(`¿Archivar viaje de la unidad ${n} de forma permanente?`)) { 
-            let v = viajesActivos[id];
-            if(v && !v.t_fin) { 
-                db.ref('viajes_activos/'+id+'/t_fin').set(Date.now()); 
-                registrarLog(id, "Marcó FINALIZADO", "Automático"); 
-            }
-            registrarLog(id, "FINALIZÓ VIAJE", "Se archiva registro"); 
-            setTimeout(()=>db.ref('viajes_activos/'+id).remove(), 1000); 
-        } 
     }
 
     // --- RENDERIZADO PRINCIPAL (CORE) ---
@@ -1620,10 +1458,23 @@
                         let cIdx = v.destino_idx || 0;
                         let isLastDest = (cIdx >= totDests - 1);
                         
+                        // Si ya está todo el viaje finalizado y es el último
+                        let isTripFullyFinished = (isLastDest && v.t_fin);
+                        
+                        // Determinar visualmente Origen y Destino de la Tarjeta Frontal
                         let cOrigen = v.origen_actual || v.origen || "";
                         let cDestino = arrDests[cIdx] || v.destino || "";
 
+                        // Si el viaje COMPLETO finalizó, que muestre el Origen Original hasta el Destino Final
+                        if (isTripFullyFinished) {
+                            cOrigen = v.origen || "";
+                            cDestino = arrDests[totDests - 1] || v.destino || "";
+                        }
+
                         let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
+                        if(isTripFullyFinished && totDests > 1) {
+                            notaDests = `<div style="font-size:0.65rem; color:#10b981; font-weight:900; margin-top:4px;"><i class="fa-solid fa-flag-checkered"></i> Ruta Completa</div>`;
+                        }
 
                         // Acordeon Html
                         let tramosHtml = '';
@@ -1654,7 +1505,7 @@
 
                         let isTransit = v.is_transit && cIdx > 0;
                         
-                        // Fix del Horario Final: Si está en el último y ya finalizó, o es el último, la salida muestra t_salida_origen
+                        // Fix del Horario Final: Si está en el último, la salida muestra la maestra t_salida_origen
                         let timestampSalidaVisual = (isLastDest && v.t_salida_origen && cIdx > 0) ? v.t_salida_origen : v.t_salida;
                         
                         let btnSalida = construirBotonHorario(vId, timestampSalidaVisual, 't_salida', 'SALIDA', 'success', isTransit);
@@ -1664,7 +1515,15 @@
                         let mapClick = `clickMapaUnidad('${vId}')`;
 
                         let tds = {};
-                        tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex align-items-center justify-content-center"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${nombreCamion}</span></div></td>`;
+                        
+                        // CONTENEDORES INYECTADO DENTRO DE COL-UNIDAD
+                        tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}">
+                            <div class="d-flex flex-column align-items-center justify-content-center w-100">
+                                <span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${nombreCamion}</span>
+                                <input class="input-ghost text-center mt-1 w-100" style="font-size:0.6rem; color:#64748b; border-bottom:1px dashed #cbd5e1;" value="${v.contenedores||''}" placeholder="CONTENEDORES" title="Editar contenedores" onblur="db.ref('viajes_activos/${vId}/contenedores').set(this.value.toUpperCase())">
+                            </div>
+                        </td>`;
+                        
                         tds['col-operador'] = `<td class="col-operador align-middle ${hiddenCols['col-operador'] ? 'd-none' : ''}"><div id="op_wialon_${vId}"><span class="badge bg-secondary w-100 mt-1" style="font-size:0.6rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</span></div></td>`;
                         
                         tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}">
@@ -1680,7 +1539,6 @@
                             </div>
                         </td>`;
                         
-                        tds['col-contenedores'] = `<td class="col-contenedores align-middle ${hiddenCols['col-contenedores'] ? 'd-none' : ''}"><textarea class="input-ghost text-start" style="resize:none; min-height:40px;" placeholder="CONTENEDORES" onblur="db.ref('viajes_activos/${vId}/contenedores').set(this.value.toUpperCase())">${v.contenedores||''}</textarea></td>`;
                         tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${btnSalida}${btnArribo}${btnFin}</div></td>`;
                         tds['col-estatus'] = `<td class="col-estatus align-middle ${hiddenCols['col-estatus'] ? 'd-none' : ''}" style="overflow: visible !important;">${optionsHtml}</td>`;
                         tds['col-gps'] = `<td class="col-gps align-middle ${hiddenCols['col-gps'] ? 'd-none' : ''}" id="gps_cell_${vId}">
