@@ -13,9 +13,22 @@ function mostrarNotificacion(msg) {
 }
 
 // --- CONTROL DE PARPADEOS EN UI (PUNTO 6) ---
+// --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---
 let UI_PAUSED = false;
-document.addEventListener('show.bs.dropdown', () => { UI_PAUSED = true; });
-document.addEventListener('hide.bs.dropdown', () => { UI_PAUSED = false; setTimeout(renderizarBitacora, 200); });
+
+document.addEventListener('show.bs.dropdown', (e) => { 
+    UI_PAUSED = true; 
+    let tr = e.target.closest('tr');
+    if(tr) tr.classList.add('dropdown-active'); // Eleva la fila por encima de las demás
+});
+
+document.addEventListener('hide.bs.dropdown', (e) => { 
+    UI_PAUSED = false; 
+    let tr = e.target.closest('tr');
+    if(tr) tr.classList.remove('dropdown-active'); // Regresa la fila a la normalidad
+    setTimeout(renderizarBitacora, 200); 
+});
+
 document.addEventListener('focusin', (e) => { if(['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) UI_PAUSED = true; });
 document.addEventListener('focusout', (e) => { if(['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) { UI_PAUSED = false; setTimeout(renderizarBitacora, 200); } });
 
@@ -1984,3 +1997,4 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
