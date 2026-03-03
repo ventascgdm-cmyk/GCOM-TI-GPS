@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>GRUDICOM TI & GPS | C4 - OPERATIVO MASTER</title>
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="styles.css">
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-bg">
+    <div class="login-card text-center">
+        <img src="TIGPS HD2.png" alt="Logo" style="height: 100px; margin-bottom: 20px;" onerror="this.style.display='none'">
+        <h5 class="fw-bold mb-4" style="color: var(--grudicom-blue);">GRUDICOM TI & GPS</h5>
+        <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario o Correo">
+        <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
+        <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master (Modular v2.0)</div>
+    </div>
+</div>
+
+<div id="dashboard" style="display:none;">
+    <div class="header-bar">
+        <div class="d-flex align-items-center">
+            <img src="TIGPS HD2.png" alt="Logo" style="height: 60px;" class="me-3" onerror="this.style.display='none'">
+            <div class="d-none d-md-block">
+                <h3 class="fw-bold m-0" style="letter-spacing:-0.5px; font-size: 1.8rem; color: var(--grudicom-blue);">GRUDICOM TI & GPS <span class="text-secondary opacity-50" style="font-size: 1.3rem;">| C4</span></h3>
+                <div class="text-muted fw-bold mt-1" id="lblUsuarioActivo" style="font-size: 0.85rem;"><i class="fa-solid fa-user-shield me-1"></i> Monitor: </div>
+            </div>
+        </div>
+        
+        <div class="search-bar-container flex-grow-1 px-4" style="max-width: 350px;">
+            <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-secondary" style="background: white;">
+                <span class="input-group-text bg-white border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                <input type="text" id="buscador" class="form-control border-0 bg-white shadow-none py-2" style="font-size: 0.80rem; font-weight: bold;" placeholder="Buscar unidad, operador..." onkeyup="filtrarTablaInteligente()">
+            </div>
+        </div>
+
+        <div class="btn-action-group d-flex align-items-center">
+            <div class="dropdown d-inline-block me-2">
+                <button class="btn btn-light fw-bold dropdown-toggle border shadow-sm rounded-pill px-4 py-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                    <i class="fa-solid fa-gear text-primary me-1"></i> Panel
+                </button>
+                <ul class="dropdown-menu shadow-lg border-0 rounded-4 p-2" style="font-size: 0.8rem; width: 280px;" id="colTogglerMenu">
+                    <li><div class="px-3 py-2 fw-bold text-center text-dark bg-light rounded mb-2" id="menuSyncIndicator"><i class="fa-solid fa-satellite-dish text-primary"></i> Sincronizando...</div></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="px-3 py-1 fw-bold text-secondary" style="font-size:0.65rem;">SISTEMA</li>
+                    <li><a class="dropdown-item cp py-2" data-bs-toggle="modal" data-bs-target="#modalStatusTokens"><i class="fa-solid fa-key me-2 text-warning"></i> Tokens Wialon</a></li>
+                    <li><a class="dropdown-item cp py-2" onclick="resetColumnas()"><i class="fa-solid fa-arrows-rotate me-2 text-secondary"></i> Restaurar Tamaños y Orden</a></li>
+                    <li><a class="dropdown-item cp py-2" id="btnAdminMenu" style="display:none;" data-bs-toggle="modal" data-bs-target="#modalAdmin"><i class="fa-solid fa-user-shield me-2 text-danger"></i> Admin DB</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="px-3 py-1 fw-bold text-secondary" style="font-size:0.65rem;">MOVER Y OCULTAR COLUMNAS</li>
+                    <div id="column-toggles"></div>
+                </ul>
+            </div>
+            <button class="btn btn-info fw-bold me-1 text-dark shadow-sm rounded-pill px-3 py-2" onclick="toggleMap()"><i class="fa-solid fa-map me-1"></i> Mapa</button>
+            <button class="btn text-white fw-bold me-1 shadow-sm rounded-pill px-3 py-2" style="background: var(--grudicom-blue);" data-bs-toggle="modal" data-bs-target="#modalNuevoViaje" onclick="prepararNuevoViaje()"><i class="fa-solid fa-plus"></i></button>
+            <button class="btn btn-outline-danger fw-bold rounded-pill px-3 py-2 bg-white" onclick="cerrarSesion()"><i class="fa-solid fa-power-off"></i></button>
+        </div>
+    </div>
+
+    <div class="workspace-container" id="mainWorkspace">
+        <div class="map-panel"><div id="map"></div></div>
+        <div class="table-panel">
+            <div class="table-wrapper" id="scrollContainer">
+                <table class="table-custom text-center" id="mainTable">
+                    <tbody id="units-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPreviewCaptura" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-primary text-white border-0 py-3">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-camera-retro me-2"></i> CAPTURA GENERADA CON ÉXITO</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-3 text-center">
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; margin-bottom: 15px;">
+                    <img id="imgPreviewCaptura" src="" style="max-width: 100%; height: auto;">
+                </div>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <button class="btn btn-primary fw-bold shadow-sm px-4" onclick="descargarCaptura()"><i class="fa-solid fa-download me-2"></i> Descargar</button>
+                    <button class="btn btn-dark fw-bold shadow-sm px-4" onclick="copiarCaptura()"><i class="fa-solid fa-copy me-2"></i> Copiar Imagen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoViaje" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header text-white border-0 py-3" style="background: var(--grudicom-blue);">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-truck-fast me-2"></i> REGISTRO BATCH DE VIAJES</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light rounded-bottom-4 p-4">
+                <div class="bg-white p-3 rounded-4 shadow-sm mb-3 border">
+                    <div class="form-check form-switch mb-3 bg-light p-2 rounded border border-info" style="font-size:0.85rem;">
+                        <input class="form-check-input ms-1 cp" type="checkbox" id="nv_externa">
+                        <label class="form-check-label fw-bold text-info ms-2 cp" for="nv_externa"><i class="fa-solid fa-globe"></i> MODO UNIDADES EXTERNAS MANUALES</label>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cliente:</label>
+                            <input type="text" id="nv_cliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_clientes" placeholder="Escribe el cliente...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Subcliente (Opcional):</label>
+                            <input type="text" id="nv_subcliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_subclientes" placeholder="Escribe el subcliente...">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white p-3 rounded-4 shadow-sm border border-primary">
+                    <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-list-check me-2"></i> AÑADIR UNIDADES AL LOTE</h6>
+                    <div id="nv_filas_container"></div>
+                    <button onclick="agregarFilaNV()" class="btn btn-outline-primary btn-sm w-100 fw-bold mb-3 border-dashed" style="border-style: dashed;"><i class="fa-solid fa-plus me-1"></i> AÑADIR OTRA UNIDAD AL LOTE</button>
+                    <button onclick="registrarViajesMultiples()" class="btn text-white w-100 fw-bold py-2 rounded-pill shadow fs-6" style="background: var(--grudicom-blue);">🚀 INICIAR TODOS LOS VIAJES</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditarViaje" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header text-white border-0 py-3" style="background: var(--grudicom-blue);">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-pencil me-2"></i> EDITAR VIAJE: <span id="edU_name" class="text-info"></span></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light rounded-bottom-4 p-4">
+                <div class="bg-white p-3 rounded-4 shadow-sm border">
+                    <input type="hidden" id="edU_id">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cliente:</label>
+                            <input type="text" id="ed_cliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_clientes">
+                        </div>
+                        <div class="col-6">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Subcliente:</label>
+                            <input type="text" id="ed_subcliente" class="form-control form-control-sm bg-light fw-bold text-uppercase" list="list_subclientes">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12 mb-2">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Origen (Inicial):</label>
+                            <input type="text" id="ed_origen" class="form-control form-control-sm bg-light text-uppercase" list="listaGeocercas">
+                        </div>
+                        <div class="col-12 mb-2">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Destino(s): <span class="text-muted fw-normal" style="font-size:0.65rem;">(Presiona Enter para agregar)</span></label>
+                            <div class="chips-container" id="ed_chips_box" onclick="document.getElementById('ed_destino_input').focus()">
+                                <input type="text" id="ed_destino_input" list="listaGeocercas" placeholder="Escribe destino y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_box', edChipsArray)">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Contenedores / Caja:</label>
+                            <input type="text" id="ed_contenedores" class="form-control form-control-sm bg-light text-uppercase" placeholder="Detalle de contenedores">
+                        </div>
+                    </div>
+                    <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Operador Manual (Opcional):</label>
+                    <input type="text" id="ed_operador" class="form-control form-control-sm mb-3 bg-light text-uppercase" list="listaConductores">
+                    <button onclick="guardarEdicionViaje()" class="btn btn-success w-100 fw-bold py-2 rounded-pill shadow-sm">GUARDAR CAMBIOS</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalLog" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white border-0 py-2">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-list-ul"></i> HISTORIAL: <span id="log_uName"></span></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 bg-light rounded-bottom-4">
+                <div id="log_container" class="mb-3 bg-white border border-light rounded-4 p-2 shadow-sm" style="height:200px; overflow-y:auto; font-size:0.75rem;"></div>
+                <input type="hidden" id="log_uid">
+                <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden">
+                    <input type="text" id="log_txt" class="form-control border-0 text-uppercase bg-white px-3" placeholder="Nota manual...">
+                    <button class="btn btn-primary fw-bold px-3" onclick="guardarLogManual()"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalStatusTokens" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-warning text-dark border-0 py-2">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-satellite-dish"></i> ESTATUS GPS</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <ul class="list-group list-group-flush rounded-bottom-4" id="listaStatusTokens"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAdmin" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-danger text-white border-0 py-2">
+                <h6 class="modal-title fw-bold m-0">ADMINISTRACIÓN MAESTRA</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light rounded-bottom-4 p-3">
+                <div class="row g-2">
+                    <div class="col-lg-2 col-md-4">
+                        <div class="bg-white p-2 rounded-3 shadow-sm h-100">
+                            <h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Tokens GPS</h6>
+                            <input type="text" id="tk_nom" class="form-control form-control-sm mb-1 bg-light" placeholder="Ej. RACEL">
+                            <input type="text" id="tk_url" class="form-control form-control-sm mb-1 bg-light" value="https://hst-api.wialon.com">
+                            <input type="text" id="tk_val" class="form-control form-control-sm mb-1 bg-light" placeholder="Token Largo">
+                            <button class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0" onclick="agregarToken()">Guardar</button>
+                            <ul class="list-group list-group-sm mt-2" id="listaTokensActivos" style="font-size:0.7rem;"></ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-4">
+                        <div class="bg-white p-2 rounded-3 shadow-sm h-100">
+                            <h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Operadores Manuales</h6>
+                            <input class="form-control form-control-sm mb-1 bg-light" list="listaUnidadesTotales" id="op_unidad" placeholder="Unidad" autocomplete="off">
+                            <input type="text" id="op_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Nombre Chófer">
+                            <button onclick="vincularOperador()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Vincular</button>
+                            <ul class="list-group list-group-sm mt-2" id="listaOperadoresAdmin" style="font-size:0.7rem;"></ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4">
+                        <div class="bg-white p-2 rounded-3 shadow-sm h-100">
+                            <h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Clientes</h6>
+                            <input type="text" id="cli_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Empresa">
+                            <input type="file" id="cli_logo_file" accept="image/*" class="form-control form-control-sm mb-1 bg-light" title="Seleccionar Logo" style="font-size:0.6rem;">
+                            <button onclick="crearCliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button>
+                            <ul class="list-group list-group-sm mt-2" id="listaClientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4">
+                        <div class="bg-white p-2 rounded-3 shadow-sm h-100">
+                            <h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Subclientes</h6>
+                            <select id="sub_clientePadre" class="form-select form-select-sm mb-1 bg-light"></select>
+                            <input type="text" id="sub_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Sub-empresa">
+                            <button onclick="crearSubcliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button>
+                            <ul class="list-group list-group-sm mt-2" id="listaSubclientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-4">
+                        <div class="bg-white p-2 rounded-3 shadow-sm h-100">
+                            <h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Monitoristas</h6>
+                            <input type="text" id="usr_id" class="form-control form-control-sm mb-1 bg-light" placeholder="Usuario (login)">
+                            <input type="text" id="usr_nom" class="form-control form-control-sm mb-1 bg-light" placeholder="Nombre completo">
+                            <input type="text" id="usr_pass" class="form-control form-control-sm mb-1 bg-light" placeholder="Contraseña">
+                            <button onclick="crearUsuario()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Crear</button>
+                            <ul class="list-group list-group-sm mt-2" id="listaUsuariosAdmin" style="font-size:0.7rem;"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<datalist id="list_clientes"></datalist>
+<datalist id="list_subclientes"></datalist>
+<datalist id="listaGeocercas"></datalist>
+<datalist id="listaConductores"></datalist>
+<datalist id="listaUnidadesTotales"></datalist>
+
+<script src="app.js"></script>
+</body>
+</html>
