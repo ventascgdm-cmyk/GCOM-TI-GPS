@@ -649,12 +649,21 @@ window.sincronizarFlotas = async function() {
         let promesas = configSistema.tokens.map(async (tk) => {
             try {
                 if(!tk.url || !tk.token) return;
-                if(!activeSIDs[tk.token]) { let l = await peticionWialon(tk.url, "token/login", {token: tk.token}); if(l && l.eid) activeSIDs[tk.token] = { sid: l.eid }; }
+                
+                // 1. Auto-Reconexión de Sesión
+                if(!activeSIDs[tk.token]) { 
+                    let l = await peticionWialon(tk.url, "token/login", {token: tk.token}); 
+                    if(l && l.eid) activeSIDs[tk.token] = { sid: l.eid }; 
+                }
                 let auth = activeSIDs[tk.token]; if(!auth || !auth.sid) { estadoTokens[tk.nombre] = { status: 'ERR', count: 0 }; return; }
 
                 let autoLoginUrl = `${tk.url.includes("hst-api") ? "https://hosting.wialon.com" : tk.url}/login.html?token=${tk.token}`;
 
                 let reqR = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_resource", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 256 + 4096, from: 0, to: 4294967295 }, auth.sid);
+                
+                // Si Wialon caducó la sesión (error 1 o 2), la borramos para que se reconecte en el próximo ciclo
+                if (reqR && reqR.error && (reqR.error === 1 || reqR.error === 2)) delete activeSIDs[tk.token];
+
                 let diccChoferes = {}; let diccZonasReq = {}; let diccZonasNombres = {};
 
                 if(reqR && reqR.items) {
@@ -674,6 +683,9 @@ window.sincronizarFlotas = async function() {
                 }
 
                 let reqU = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_unit", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 1024, from: 0, to: 4294967295 }, auth.sid);
+                
+                if (reqU && reqU.error && (reqU.error === 1 || reqU.error === 2)) delete activeSIDs[tk.token];
+
                 if(reqU && reqU.items) {
                     conexionesExitosas++; estadoTokens[tk.nombre] = { status: 'OK', count: reqU.items.length };
                     let uIds = reqU.items.map(u => u.id); let checkGeo = {};
@@ -692,25 +704,57 @@ window.sincronizarFlotas = async function() {
                                 if (miZona) break;
                             }
                         }
-                        tempUnits[u.id] = { id: u.id, name: n, pos: u.pos, loginUrl: autoLoginUrl, choferObj: chofer, zonaOficial: miZona }; listUni.add(n); 
+                        // Agregamos tkNombre para identificar de qué token viene
+                        tempUnits[u.id] = { id: u.id, name: n, pos: u.pos, loginUrl: autoLoginUrl, choferObj: chofer, zonaOficial: miZona, tkNombre: tk.nombre }; 
+                        listUni.add(n); 
                     });
-                } else { estadoTokens[tk.nombre] = { status: 'ERR', count: 0 }; }
-            } catch(errTk) { console.error("Token Falló:", tk.nombre); }
+                } else { 
+                    // 2. MEMORIA PERSISTENTE (El Fix Principal)
+                    // Si falla Wialon, NO borramos los camiones. Los rescatamos de la memoria global vieja.
+                    estadoTokens[tk.nombre] = { status: 'ERR (Reconectando)', count: 0 }; 
+                    Object.values(unidadesGlobales).forEach(oldU => {
+                        if (oldU.tkNombre === tk.nombre || !oldU.tkNombre) {
+                            tempUnits[oldU.id] = oldU;
+                            listUni.add(oldU.name);
+                        }
+                    });
+                }
+            } catch(errTk) { 
+                console.error("Fallo de red en Token:", tk.nombre); 
+                // Rescate en caso de error crítico de red
+                Object.values(unidadesGlobales).forEach(oldU => {
+                    if (oldU.tkNombre === tk.nombre || !oldU.tkNombre) {
+                        tempUnits[oldU.id] = oldU;
+                        listUni.add(oldU.name);
+                    }
+                });
+            }
         });
 
         await Promise.all(promesas); 
-        unidadesGlobales = tempUnits; geocercasNativas = tempGeo;
+        
+        // Solo sobrescribimos si logramos armar una lista válida
+        if (Object.keys(tempUnits).length > 0 || Object.keys(unidadesGlobales).length === 0) {
+            unidadesGlobales = tempUnits; 
+        }
+        if (tempGeo.length > 0 || geocercasNativas.length === 0) {
+            geocercasNativas = tempGeo;
+        }
+        
         document.getElementById("listaUnidadesTotales").innerHTML = Array.from(listUni).map(n => `<option value="${n}">`).join('');
-        document.getElementById("listaGeocercas").innerHTML = tempGeo.map(z => `<option value="${String(z.n).toUpperCase()}">`).join('');
+        document.getElementById("listaGeocercas").innerHTML = geocercasNativas.map(z => `<option value="${String(z.n).toUpperCase()}">`).join('');
         
         if(indMenu) {
             if(conexionesExitosas > 0) indMenu.innerHTML = `<span class="badge bg-success shadow-sm rounded-pill py-1 px-2">${Object.keys(unidadesGlobales).length} Camiones Live</span>`;
-            else indMenu.innerHTML = `<span class="badge bg-danger shadow-sm rounded-pill py-1 px-2">Error GPS - Offline</span>`;
+            else indMenu.innerHTML = `<span class="badge bg-danger shadow-sm rounded-pill py-1 px-2">Reconectando Wialon...</span>`;
         }
-        renderStatusTokens(); inyectarGPSenTabla(); 
+        
+        renderStatusTokens(); 
+        inyectarGPSenTabla(); 
         if(mapVisible) { actualizarMarcadoresMapa(); pintarGeocercasEnMapa(); }
+        
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
-};
+}
 
 function inyectarGPSenTabla() {
     Object.keys(viajesActivos).forEach(vId => {
@@ -844,6 +888,7 @@ function procesarFilaDirecciones() {
         document.querySelectorAll(`.addr-span-${item.key}`).forEach(span => span.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${a}`);
     }).catch(e => console.log("Geo Err")).finally(() => { isGeocoding = false; });
 }
+
 
 
 
