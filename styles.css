@@ -45,6 +45,10 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 .data-row:hover td { filter: brightness(0.96); }
 
+/* FIX PARA EVITAR QUE LOS MENÚS SE ENCIMEN CON OTRAS FILAS */
+tr.dropdown-active { position: relative !important; z-index: 99999 !important; }
+tr.dropdown-active td { position: relative !important; z-index: 99999 !important; }
+
 /* ALERTA ROJA (MÁS DE 10 MINUTOS SIN CONEXIÓN) */
 .lost-connection-row td { background-color: #fee2e2 !important; border-bottom: 2px dashed #ef4444 !important; }
 .external-gps-cell { background-color: rgba(14, 165, 233, 0.05) !important; border: 1px dashed #0ea5e9 !important; border-radius: 6px; }
@@ -53,7 +57,7 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .header-cliente td { background: var(--grudicom-blue) !important; color: #ffffff !important; padding: 12px 15px !important; border: none !important; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); text-align: center; }
 .header-subcliente td { background: #e2e8f0 !important; color: var(--grudicom-blue) !important; font-size: 0.95rem; font-weight: 800; padding: 6px 10px !important; border: none !important; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 4px; }
 
-/* LOGOS HOMOLOGADOS (PUNTO 1 Y 6) */
+/* LOGOS HOMOLOGADOS */
 .client-logo { height: 50px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 12px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin: 0 15px; }
 .grudicom-logo-header { height: 50px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 12px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin-right: 15px; }
 .client-logo-sub { height: 25px; max-width: 100px; object-fit: contain; vertical-align: middle; margin-right: 10px; border-radius: 4px; background: white; padding: 2px; }
@@ -62,6 +66,19 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .route-text { width: 100%; font-size: 0.7rem; font-weight: 700; color: #0f172a; text-transform: uppercase; text-align: center; border: 1px dashed transparent; background: transparent; padding: 4px; border-radius: 4px; transition: 0.2s; outline: none; min-height: 24px; word-wrap: break-word; white-space: pre-wrap; }
 .route-text:hover { border-color: var(--border-col); background: rgba(241, 245, 249, 0.8); cursor: text; }
 .route-text:focus { border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); }
+
+/* SEMÁFORO MINIMALISTA (PUNTO 3) */
+.semaforo-minimalista { font-size: 0.62rem; font-weight: 800; margin-top: 4px; text-align: center; display: block; width: 100%; letter-spacing: -0.2px; }
+.semaforo-minimalista.verde { color: #15803d; }
+.semaforo-minimalista.amarillo { color: #b45309; }
+.semaforo-minimalista.rojo { color: #b91c1c; }
+
+/* INPUT DE HORA DIRECTO (PUNTO 7) */
+.time-input-direct { background: transparent; border: 1px dashed transparent; border-radius: 4px; font-size: 0.65rem; font-weight: 900; width: 100%; text-align: center; cursor: pointer; padding: 2px 0; transition: all 0.2s; outline: none; margin-bottom: 2px; }
+.time-input-direct:hover { background: rgba(255,255,255,0.7); border-color: var(--accent); color: var(--accent) !important; }
+.time-input-direct:focus { background: #fff; border-style: solid; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); cursor: text; color: #0f172a !important; }
+.time-input-direct::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; padding: 2px; }
+.time-input-direct::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
 .unit-name { cursor: pointer; color: var(--grudicom-blue); font-weight: 900; font-size: 1.2rem; letter-spacing: 0.5px; display: block; text-align: center; transition: 0.2s;}
 .unit-name:hover { color: #001a33; text-decoration: underline; }
@@ -77,7 +94,7 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 .cp { cursor: pointer; }
 
-/* Z-INDEX DROPDOWNS PARA EVITAR PARPADEOS O RECORTES (PUNTO 6) */
+/* MENÚS FLOTANTES */
 .dropdown-menu { z-index: 1060 !important; }
 .dropdown-menu-custom { border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--border-col); padding: 8px; min-width: 200px; }
 .dropdown-item-custom { border-radius: 8px; padding: 8px 12px; font-weight: 700; transition: 0.2s; font-size: 0.75rem; margin-bottom: 4px;}
@@ -86,12 +103,6 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 #imgPreviewCaptura { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); padding: 0; }
 .leaflet-popup-content { margin: 10px 15px; line-height: 1.2; }
-
-/* SEMÁFORO RUTA PROGRAMADA */
-.badge-semaforo { font-size: 0.65rem; font-weight: 800; padding: 3px 8px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 6px; width: 100%; max-width: 180px; text-transform: uppercase; }
-.semaforo-verde { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.semaforo-amarillo { background-color: #fef9c3; color: #b45309; border: 1px solid #fde047; }
-.semaforo-rojo { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
 
 /* MAP TOOLTIPS GEOCERCAS */
 .geocerca-tooltip { background: rgba(0, 51, 102, 0.9); color: #fff; border: 1px solid #fff; border-radius: 6px; font-weight: 800; padding: 4px 8px; font-size: 0.7rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
@@ -113,16 +124,16 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .tramo-historial { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
 .tramo-historial.expanded { max-height: 300px; overflow-y: auto; }
 
-/* ANIMACIÓN BOTONES FLOTANTES (PUNTOS 1 Y 5) */
+/* ANIMACIÓN HUBS CENTRALIZADOS (PUNTO 6) */
 @keyframes pulseRed {
     0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
     70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
     100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
 }
-@keyframes pulseGreen {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
-    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(25, 135, 84, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+@keyframes pulseBlue {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(13, 110, 253, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
 }
 
 /* ANIMACIÓN DE HISTORIAL ROJO CON CAMPANA */
@@ -152,15 +163,5 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
     80% { transform: rotate(-10deg); }
 }
 
-/* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA (PUNTO 4) */
+/* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA */
 .oculto-en-captura { display: none !important; }
-
-/* FIX PARA EVITAR QUE LOS MENÚS SE ENCIMEN CON OTRAS FILAS */
-tr.dropdown-active {
-    position: relative !important;
-    z-index: 99999 !important;
-}
-tr.dropdown-active td {
-    position: relative !important;
-    z-index: 99999 !important;
-}
