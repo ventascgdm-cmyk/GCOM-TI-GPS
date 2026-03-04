@@ -161,4 +161,8 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 /* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA */
 .oculto-en-captura { display: none !important; }
 
+/* FIX SUPREMO PARA MENÚS ENCIMADOS (APAGA EL Z-INDEX DEL ENCABEZADO AL ABRIR MENÚ) */
+body.dropdown-open .header-columnas th { z-index: 1 !important; }
+body.dropdown-open .header-cliente td { z-index: 0 !important; }
+body.dropdown-open .header-subcliente td { z-index: 0 !important; }
 
