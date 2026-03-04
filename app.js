@@ -543,18 +543,22 @@ window.rechazarNotificacion = function(id, isSeguridad) {
 // --- DISEÑO HÍBRIDO Y CALENDARIO FLATPICKR (PUNTO 7) ---
 let fpInstance = null;
 window.abrirModalEdicionHora = function(vId, field, titulo, actualTs) {
-    document.getElementById('eh_vId').value = vId; document.getElementById('eh_field').value = field;
-    document.getElementById('eh_txtVacio').value = titulo; document.getElementById('eh_title').innerText = titulo;
+    document.getElementById('eh_vId').value = vId; 
+    document.getElementById('eh_field').value = field;
+    document.getElementById('eh_txtVacio').value = titulo; 
+    document.getElementById('eh_title').innerText = titulo;
     
     let defaultD = (actualTs && actualTs !== 'null') ? new Date(Number(actualTs)) : new Date();
     if(fpInstance) fpInstance.destroy();
     
     fpInstance = flatpickr("#eh_input", {
         enableTime: true,
-        dateFormat: "Y-m-d H:i",
+        dateFormat: "Y-m-d h:i K", // Formato visual de 12 horas con AM/PM para que sea más fácil leer
         defaultDate: defaultD,
         locale: "es",
-        time_24hr: false
+        time_24hr: false,
+        minuteIncrement: 1, // Permite mover los minutos de 1 en 1
+        allowInput: true    // Permite al monitorista escribir la hora con su teclado
     });
     
     new bootstrap.Modal(document.getElementById('modalEditHora')).show();
@@ -967,3 +971,4 @@ async function sincronizarFlotas() {
         
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
 }
+
