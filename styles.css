@@ -165,3 +165,11 @@ tr.dropdown-active td { position: relative !important; z-index: 99999 !important
 
 /* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA */
 .oculto-en-captura { display: none !important; }
+
+/* FIX SUPREMO PARA MENÚS ENCIMADOS (Z-INDEX) */
+.data-row { position: relative; z-index: 10; }
+.data-row.dropdown-active { z-index: 999999 !important; }
+.data-row.dropdown-active td { z-index: 999999 !important; position: relative; }
+
+.header-cliente td, .header-subcliente td { position: relative; z-index: 1 !important; }
+.dropdown-menu { z-index: 999999 !important; }
