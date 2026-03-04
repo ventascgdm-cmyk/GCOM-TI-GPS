@@ -348,7 +348,8 @@ function guardarLogManual() {
     mostrarNotificacion("Nota guardada en el historial.");
 }
 
-function enviarWA(vId) {
+// --- REPORTE DE WHATSAPP CON MULTI-DESTINO Y GPS CORREGIDO (PUNTO 3) ---
+window.enviarWA = function(vId) {
     let v = viajesActivos[vId]; if(!v) return;
     let uData = encontrarUnidad(v, vId); let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback);
     let estNombre = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0;
@@ -357,46 +358,62 @@ function enviarWA(vId) {
     let subName = (dataClientes[cliId] && dataClientes[cliId].subclientes && dataClientes[cliId].subclientes[subId]) ? dataClientes[cliId].subclientes[subId].nombre : "";
     let subText = subName && subName !== "N/A" ? ` -> ${subName}` : '';
     let addrText = v.ubicacion_manual_raw || "Buscando..."; let locLink = addrText; let geoTextWA = "";
+    
     if (pos) {
         let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
         if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        locLink = `${addrText} \nhttps://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
+        // CORRECCIÓN DEL LINK: Interpolación correcta de variables pos.y y pos.x
+        locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
     }
+    
     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
     let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
     let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
+    
     let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${contStr}\n🛣️ *Ruta Actual:* ${cOrigen} ➔ ${cDestino}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank'); 
 }
 
-function generarReporteGrupal(cId, sId, titulo) {
+window.generarReporteGrupal = function(cId, sId, titulo) {
     if(!datosAgrupadosGlobal[cId] || !datosAgrupadosGlobal[cId][sId]) return;
     let arrViajes = datosAgrupadosGlobal[cId][sId]; let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
+    
     arrViajes.forEach(({v, vId}) => {
         let uData = encontrarUnidad(v, vId); let name = limpiarStr(v.unidadN || v.unidadFallback);
         let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let vel = pos ? pos.s : 0;
         let locLink = v.ubicacion_manual_raw || "Manual"; let geoTextWA = "";
+        
         if (pos) {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
-            if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`; locLink = `https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
+            if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`; 
+            // CORRECCIÓN DEL LINK GRUPAL
+            locLink = `https://www.google.com/maps?q=${pos.y},${pos.x}`;
         }
+        
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
         let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
         let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
+        
         txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${contStr}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${cOrigen} ➔ ${cDestino}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
     });
     txt += `_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
 }
 
+// --- CAPTURA INTELIGENTE CON BORRADO ABSOLUTO (PUNTO 4) ---
 async function generarCapturaCliente(cId, cliName) {
     let tableWrap = document.getElementById('scrollContainer'); let allRows = document.querySelectorAll('#units-body tr'); let hiddenRows = [];
+    
     allRows.forEach(r => { if(!r.classList.contains(`client-group-${cId}`)) { hiddenRows.push({el: r, display: r.style.display}); r.style.display = 'none'; } });
-    document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .dropdown-toggle, .btn-dots, .dropdown').forEach(el => el.classList.add('oculto-en-captura'));
+    
+    // AQUÍ AGREGAMOS LAS CLASES DEL HISTORIAL Y EL TELÉFONO PARA QUE DESAPAREZCAN EN LA FOTO
+    document.querySelectorAll('.col-alertas, .col-accion, .col-historial, .dropdown-toggle, .btn-dots, .dropdown, .fw-bold.text-muted.user-select-all.mt-1').forEach(el => el.classList.add('oculto-en-captura'));
+    
     let oldHeight = tableWrap.style.height; let oldMaxHeight = tableWrap.style.maxHeight; let oldOverflow = tableWrap.style.overflow;
     tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible';
     let oldW = document.getElementById("mainTable").style.width; document.getElementById("mainTable").style.width = "max-content";
+    
     await new Promise(r => setTimeout(r, 400));
     try {
         let canvas = await html2canvas(document.getElementById('mainTable'), { scale: 2, backgroundColor: '#f1f5f9', useCORS: true });
@@ -540,7 +557,7 @@ window.rechazarNotificacion = function(id, isSeguridad) {
     if(isSeguridad) abrirHubSeguridad(); else abrirHubLogistico();
 };
 
-// --- DISEÑO HÍBRIDO Y CALENDARIO FLATPICKR (PUNTO 7) ---
+// --- DISEÑO HÍBRIDO Y CALENDARIO FLATPICKR (PUNTO 1 Y 7) ---
 let fpInstance = null;
 window.abrirModalEdicionHora = function(vId, field, titulo, actualTs) {
     document.getElementById('eh_vId').value = vId; 
@@ -551,14 +568,15 @@ window.abrirModalEdicionHora = function(vId, field, titulo, actualTs) {
     let defaultD = (actualTs && actualTs !== 'null') ? new Date(Number(actualTs)) : new Date();
     if(fpInstance) fpInstance.destroy();
     
+    // Configuración para 24 horas y entrada manual total
     fpInstance = flatpickr("#eh_input", {
         enableTime: true,
-        dateFormat: "Y-m-d h:i K", // Formato visual de 12 horas con AM/PM para que sea más fácil leer
+        dateFormat: "Y-m-d H:i", // Formato militar de 24 hrs
         defaultDate: defaultD,
         locale: "es",
-        time_24hr: false,
-        minuteIncrement: 1, // Permite mover los minutos de 1 en 1
-        allowInput: true    // Permite al monitorista escribir la hora con su teclado
+        time_24hr: true,
+        minuteIncrement: 1, 
+        allowInput: true 
     });
     
     new bootstrap.Modal(document.getElementById('modalEditHora')).show();
@@ -994,5 +1012,6 @@ async function sincronizarFlotas() {
         
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
 }
+
 
 
