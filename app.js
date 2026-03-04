@@ -582,27 +582,7 @@ window.borrarHorarioModal = function() {
     }
 };
 
-function construirBotonHorario(vId, timestampStr, dbField, textoVacio, claseColor) {
-    let ts = getSafeNumber(timestampStr);
-    
-    // Si NO hay hora registrada, dibuja SOLO el botón dashed
-    if(!ts) { 
-        let onClk = `db.ref('viajes_activos/${vId}/${dbField}').set(Date.now()); registrarLog('${vId}', 'Marcó horario de', '${textoVacio}');`;
-        if (dbField === 't_salida') { onClk = `db.ref('viajes_activos/${vId}').update({t_salida: Date.now(), t_salida_origen: (viajesActivos['${vId}'].destino_idx === 0 ? Date.now() : viajesActivos['${vId}'].t_salida_origen)}); registrarLog('${vId}', 'Marcó SALIDA');`; }
-        return `<div class="time-wrapper color-${claseColor}"><button class="time-btn-dashed" onclick="${onClk}">${textoVacio}</button></div>`; 
-    } 
-    // Si SÍ hay hora, DIBUJA SOLO LA CÁPSULA (adiós al botón duplicado)
-    else { 
-        let displayDate = formatearFechaElegante(ts);
-        let onClk = `abrirModalEdicionHora('${vId}', '${dbField}', '${textoVacio}', '${ts}')`;
-        return `<div class="time-wrapper color-${claseColor}" title="Clic para modificar">
-                    <div class="time-capsule cp" onclick="${onClk}">
-                        <div class="time-capsule-icon">${textoVacio.charAt(0)}</div>
-                        <div class="time-capsule-input">${displayDate}</div>
-                    </div>
-                </div>`; 
-    }
-}
+
 
 window.avanzarMultiDestino = function(vId) {
     let v = viajesActivos[vId]; if (!v) return;
@@ -626,7 +606,31 @@ function marcarSalida(vId, cIdx) {
     db.ref(`viajes_activos/${vId}`).update(updates); registrarLog(vId, 'Marcó SALIDA');
 }
 
-// RENDERIZADO GENERAL Y GPS
+// NUEVO SISTEMA DE BOTONES HÍBRIDOS (LIMPIO)
+function construirBotonHorario(vId, timestampStr, dbField, textoVacio, claseColor) {
+    let ts = getSafeNumber(timestampStr);
+    
+    // Si NO hay hora registrada, dibuja SOLO el botón dashed
+    if(!ts) { 
+        let onClk = `db.ref('viajes_activos/${vId}/${dbField}').set(Date.now()); registrarLog('${vId}', 'Marcó horario de', '${textoVacio}');`;
+        if (dbField === 't_salida') { 
+            onClk = `db.ref('viajes_activos/${vId}').update({t_salida: Date.now(), t_salida_origen: (viajesActivos['${vId}'].destino_idx === 0 ? Date.now() : viajesActivos['${vId}'].t_salida_origen)}); registrarLog('${vId}', 'Marcó SALIDA');`; 
+        }
+        return `<div class="time-wrapper color-${claseColor}"><button class="time-btn-dashed" onclick="${onClk}">${textoVacio}</button></div>`; 
+    } 
+    // Si SÍ hay hora, DIBUJA SOLO LA CÁPSULA PARA EDITAR
+    else { 
+        let displayDate = formatearFechaElegante(ts);
+        let onClk = `abrirModalEdicionHora('${vId}', '${dbField}', '${textoVacio}', '${ts}')`;
+        return `<div class="time-wrapper color-${claseColor}" title="Clic para modificar">
+                    <div class="time-capsule cp" onclick="${onClk}">
+                        <div class="time-capsule-icon">${textoVacio.charAt(0)}</div>
+                        <div class="time-capsule-input">${displayDate}</div>
+                    </div>
+                </div>`; 
+    }
+}
+
 function renderizarBitacora() {
     if (UI_PAUSED) return; 
     
@@ -640,6 +644,7 @@ function renderizarBitacora() {
         if(!tree[cId]) tree[cId] = { "N/A": [] }; if(!tree[cId][sId]) tree[cId][sId] = []; 
         tree[cId][sId].push({vId, v}); 
     });
+    
     datosAgrupadosGlobal = tree; 
 
     for(let cId in tree) {
@@ -650,7 +655,6 @@ function renderizarBitacora() {
         let logoHtml = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo" title="${cliName}">` : ``;
         let clientActions = cId !== "Sin_Cliente" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-white" type="button" data-bs-toggle="dropdown" title="Acciones de Cliente"><i class="fa-solid fa-ellipsis-vertical fs-5"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3"><li><a class="dropdown-item fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${cliName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura Estatus</a></li><li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', 'N/A', '${cliName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte WhatsApp</a></li></ul></div>` : '';
         let clientTitleHtml = `<div class="d-flex align-items-center justify-content-center w-100 position-relative"><img src="TIGPS HD2.png" class="grudicom-logo-header" title="Grudicom TI & GPS" onerror="this.style.display='none'">${logoHtml}<span class="align-middle text-uppercase fw-bold ms-2" style="font-size: 1.3rem; letter-spacing: 0.5px;">${cliName}</span>${clientActions}</div>`;
-        
         html += `<tr class="header-cliente shadow-sm client-group-${cId}" data-client="${cId}"><td colspan="${colOrder.length}">${clientTitleHtml}</td></tr>`;
 
         for(let sId in tree[cId]) {
@@ -681,7 +685,9 @@ function renderizarBitacora() {
                     let lastLog = logsArr.length > 0 ? `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center"><div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${nombreCamion}')"></i></div><div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;"><b class="text-primary">${String(logsArr[0].usr)}:</b> <span class="text-dark fw-bold">${String(logsArr[0].act)}</span><div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${String(logsArr[0].det||'')}">${String(logsArr[0].det||'')}</div></div></div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
 
                     let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
-                    let optionsHtml = `<div class="dropdown w-100"><button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" data-bs-boundary="window" aria-expanded="false">${curEst.nombre}</button><ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom" style="font-size:0.75rem; max-height:250px; overflow-y:auto;">${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item dropdown-item-custom cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}</ul></div>`;
+                    
+                    // MENÚ DE ESTATUS LIMPIO Y SIN BARRAS DE SCROLL
+                    let optionsHtml = `<div class="dropdown w-100"><button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" data-bs-boundary="body" aria-expanded="false">${curEst.nombre}</button><ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom">${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item dropdown-item-custom cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}</ul></div>`;
 
                     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
                     let totDests = arrDests.length || 1; let cIdx = v.destino_idx || 0; let isLastDest = (cIdx >= totDests - 1); let isTripFullyFinished = (isLastDest && v.t_fin);
@@ -718,8 +724,10 @@ function renderizarBitacora() {
                         }); tramosHtml += `</div>`;
                     }
 
-                    // PUNTO 1: El Híbrido se construye con los colores correctos
-                    let btnSalida = construirBotonHorario(vId, v.t_salida, 't_salida', 'SALIDA', 'success');
+                    let isTransit = v.is_transit && cIdx > 0;
+                    let timestampSalidaVisual = (isLastDest && v.t_salida_origen && cIdx > 0) ? v.t_salida_origen : v.t_salida;
+                    
+                    let btnSalida = construirBotonHorario(vId, timestampSalidaVisual, 't_salida', 'SALIDA', 'success');
                     let btnArribo = v.t_salida ? construirBotonHorario(vId, v.t_arribo, 't_arribo', 'ARRIBO', 'primary') : '';
                     let btnFin = v.t_arribo ? construirBotonHorario(vId, v.t_fin, 't_fin', 'FINALIZADO', 'dark') : '';
 
@@ -730,10 +738,7 @@ function renderizarBitacora() {
                     tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${nombreCamion}</span><div class="w-100 d-flex flex-column align-items-center">${htmlContenedores}</div></div></td>`;
                     tds['col-operador'] = `<td class="col-operador align-middle ${hiddenCols['col-operador'] ? 'd-none' : ''}"><div id="op_wialon_${vId}"><span class="badge bg-secondary w-100 mt-1" style="font-size:0.6rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</span></div></td>`;
                     tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje'"><div class="route-text">${cOrigen}</div><i class="fa-solid fa-caret-down my-1 text-muted" style="font-size:0.8rem;"></i><div class="route-text">${cDestino}</div>${semaforoHtml}${notaDests}${totDests > 1 ? `<button class="btn btn-sm text-primary p-0 mt-2 shadow-sm rounded-circle bg-white" style="width:24px; height:24px; line-height:12px;" onclick="expandirRuta('${vId}')"><i class="fa-solid fa-list" style="font-size:0.7rem;"></i></button>` : ''}${tramosHtml}</div></td>`;
-                    
-                    // La columna se ve limpia y hermosa con los botones híbridos
                     tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${btnSalida}${btnArribo}${btnFin}</div></td>`;
-                    
                     tds['col-estatus'] = `<td class="col-estatus align-middle ${hiddenCols['col-estatus'] ? 'd-none' : ''}" style="overflow: visible !important;">${optionsHtml}</td>`;
                     tds['col-gps'] = `<td class="col-gps align-middle ${hiddenCols['col-gps'] ? 'd-none' : ''}" id="gps_cell_${vId}"><div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><span id="icon_${vId}"><i class="fa-solid fa-spinner fa-spin text-muted me-1 fs-6"></i></span><span id="speed_${vId}"><span class="speed-badge bg-secondary m-0">-- km/h</span></span></div><div id="time_${vId}" style="font-size:0.65rem; color:#64748b; font-weight:800;">--</div></div><div class="w-100 text-center" id="addr_control_${vId}"><div style="font-size:0.75rem; color:#64748b; font-weight:800;">Sincronizando...</div></div></div></td>`;
                     tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+v.alerta.txt+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
@@ -753,7 +758,8 @@ function renderizarBitacora() {
     }
     
     tbody.innerHTML = html || `<tr><td colspan="${colOrder.length}" class="p-5 text-muted fs-6 text-center"><i class="fa-solid fa-folder-open mb-2 fs-3 text-primary"></i><br>Aún no hay viajes activos en la bitácora.</td></tr>`;
-    filtrarTablaInteligente(); if (motorArrancado) inyectarGPSenTabla();
+    filtrarTablaInteligente(); 
+    if (motorArrancado) inyectarGPSenTabla(); // Este ya no llama al redibujo pesado, solo inyecta
 }
 
 function filtrarTablaInteligente() {
@@ -872,10 +878,27 @@ function actualizarListasAdmin() {
 function agregarToken() { db.ref('sistema/tokens').push({ nombre: limpiarStr(document.getElementById("tk_nom").value), token: document.getElementById("tk_val").value, url: document.getElementById("tk_url").value }); document.getElementById("tk_nom").value=""; document.getElementById("tk_val").value=""; mostrarNotificacion("Nuevo Token."); }
 function actualizarListaTokensAdmin(tks) { const lista = document.getElementById("listaStatusTokens"); if(lista) { lista.innerHTML = Object.keys(tks || {}).map(id => `<li class="list-group-item d-flex justify-content-between p-1 fs-8"><b>${tks[id].nombre}</b> <i class="fa-solid fa-trash text-danger cp" onclick="if(confirm('¿Borrar Token?')) { db.ref('sistema/tokens/${id}').remove().then(()=>location.reload()); }"></i></li>`).join(''); } }
 
+// --- SISTEMA ANTI-PARPADEO (AMORTIGUADOR DE RENDIMIENTO) ---
+let renderTimer = null;
+function solicitarRenderizado() {
+    if(renderTimer) return; // Si ya hay un renderizado en cola, se espera.
+    renderTimer = setTimeout(() => {
+        renderTimer = null;
+        renderizarBitacora(); // Solo dibuja la tabla 1 vez, suavemente.
+        if(mapVisible) actualizarMarcadoresMapa();
+    }, 200); // Agrupa todas las actualizaciones de Wialon en bloques de 200ms
+}
+
 window.onload = function () {
     aplicarAnchosGuardados(); inicializarMenuColumnas();
-    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; actualizarListasAdmin(); renderizarBitacora(); });
-    db.ref('viajes_activos').on('value', s => { viajesActivos = s.val() || {}; renderizarBitacora(); if(mapVisible) actualizarMarcadoresMapa(); });
+    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; actualizarListasAdmin(); solicitarRenderizado(); });
+    
+    // Aquí conectamos el amortiguador a la base de datos activa
+    db.ref('viajes_activos').on('value', s => { 
+        viajesActivos = s.val() || {}; 
+        solicitarRenderizado(); 
+    });
+    
     db.ref('sistema/tokens').on('value', s => { let tks = s.val() || {}; configSistema.tokens = Object.values(tks); actualizarListaTokensAdmin(tks); if(currentUser && !motorArrancado) arranqueMotor(); });
     document.getElementById("logPass").addEventListener("keyup", e => e.key === "Enter" && autenticarUsuario());
     let sU = localStorage.getItem("tms_user"); let sP = localStorage.getItem("tms_pass"); if(sU && sP) autenticarUsuario(sU, sP);
@@ -971,4 +994,5 @@ async function sincronizarFlotas() {
         
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
 }
+
 
