@@ -121,10 +121,14 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 .cp { cursor: pointer; }
 
-/* MENÚS FLOTANTES CUSTOM LIBERADOS */
-.dropdown-menu-custom { border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid var(--border-col); padding: 8px; min-width: 200px; z-index: 999999 !important; }
+/* MENÚS FLOTANTES CUSTOM LIBERADOS Y FIJOS (PUNTO 2) */
+.dropdown-menu { z-index: 999999 !important; position: absolute !important; }
+.dropdown-menu-custom { border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid var(--border-col); padding: 8px; min-width: 200px; z-index: 999999 !important; position: fixed !important; }
 .dropdown-item-custom { border-radius: 8px; padding: 8px 12px; font-weight: 700; transition: 0.2s; font-size: 0.75rem; margin-bottom: 4px; }
 .dropdown-item-custom:hover { background-color: #f1f5f9; transform: translateX(3px); }
+
+/* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA (PUNTO 4) */
+.oculto-en-captura { display: none !important; opacity: 0 !important; visibility: hidden !important; }
 
 #imgPreviewCaptura { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); padding: 0; }
@@ -156,4 +160,5 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 /* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA */
 .oculto-en-captura { display: none !important; }
+
 
