@@ -1,5 +1,5 @@
 // ============================================================================
-// GRUDICOM TI & GPS - C4 MASTER (v5.0 Enterprise)
+// GRUDICOM TI & GPS - C4 MASTER (v6.0 Stable)
 // ============================================================================
 
 const firebaseConfig = { databaseURL: "https://monitoreo-logistica-default-rtdb.firebaseio.com/" };
@@ -26,56 +26,29 @@ document.addEventListener('hide.bs.dropdown', (e) => {
 document.addEventListener('focusin', (e) => { if(['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) UI_PAUSED = true; });
 document.addEventListener('focusout', (e) => { if(['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) { UI_PAUSED = false; setTimeout(solicitarRenderizado, 200); } });
 
-let currentUser = null;
-let configSistema = { tokens: [] };
-let dataClientes = {};
-let viajesActivos = {};
-let unidadesGlobales = {};
-let diccChoferesGlobal = {}; 
-let ramDrivers = {};
-let dbOperadores = {};
-let geocercasNativas = [];
-let activeSIDs = {};
-let pollingInterval = null;
-let lmap = null;
-let mapVisible = false;
-let mapLayerGroup = null;
-let geofenceLayerGroup = null;
-let estadoTokens = {};
-let datosAgrupadosGlobal = {}; 
-let mapaMarcadores = {}; 
-
-let alertasSeguridad = {};
-let alertasLogistica = {};
-
+let currentUser = null; let configSistema = { tokens: [] }; let dataClientes = {}; let viajesActivos = {};
+let unidadesGlobales = {}; let diccChoferesGlobal = {}; let ramDrivers = {}; let dbOperadores = {};
+let geocercasNativas = []; let activeSIDs = {}; let pollingInterval = null; let lmap = null;
+let mapVisible = false; let mapLayerGroup = null; let geofenceLayerGroup = null; let estadoTokens = {};
+let datosAgrupadosGlobal = {}; let mapaMarcadores = {}; 
+let alertasSeguridad = {}; let alertasLogistica = {};
 let geocodeCache = JSON.parse(localStorage.getItem('tms_geoCache')) || {}; 
-let geoQueue = []; 
-let isGeocoding = false; 
-let motorArrancado = false; 
-let isSyncingFlotas = false;
-let currentCaptureBlob = null; 
+let geoQueue = []; let isGeocoding = false; let motorArrancado = false; let isSyncingFlotas = false;
+let currentCaptureBlob = null; let edChipsArray = []; let edChipsContArray = []; 
 
-let edChipsArray = [];
-let edChipsContArray = []; 
-
-// --- SISTEMA ANTI-PARPADEO (AMORTIGUADOR DE RENDIMIENTO) ---
+// --- SISTEMA ANTI-PARPADEO ---
 let renderTimer = null;
 function solicitarRenderizado() {
     if(renderTimer) return; 
-    renderTimer = setTimeout(() => {
-        renderTimer = null;
-        renderizarBitacora(); 
-        if(mapVisible) actualizarMarcadoresMapa();
-    }, 200); 
+    renderTimer = setTimeout(() => { renderTimer = null; renderizarBitacora(); if(mapVisible) actualizarMarcadoresMapa(); }, 200); 
 }
 
 // --- ORDENAMIENTO MANUAL ---
 let sortState = { column: null, direction: 'asc' };
-function cambiarOrden(col) {
+window.cambiarOrden = function(col) {
     if (sortState.column === col) { sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc'; } 
-    else { sortState.column = col; sortState.direction = 'asc'; }
-    solicitarRenderizado();
-}
+    else { sortState.column = col; sortState.direction = 'asc'; } solicitarRenderizado();
+};
 
 const columnasDef = {
     'col-unidad': { titulo: 'UNIDAD <i class="fa-solid fa-sort sort-icon" title="Ordenar por Unidad" onclick="cambiarOrden(\'unidad\')"></i>', ancho: '140' },
@@ -90,49 +63,30 @@ const columnasDef = {
 };
 
 let colOrder = JSON.parse(localStorage.getItem('tms_colOrder'));
-if (!colOrder || colOrder.length !== Object.keys(columnasDef).length) {
-    colOrder = Object.keys(columnasDef); localStorage.setItem('tms_colOrder', JSON.stringify(colOrder));
-}
+if (!colOrder || colOrder.length !== Object.keys(columnasDef).length) { colOrder = Object.keys(columnasDef); localStorage.setItem('tms_colOrder', JSON.stringify(colOrder)); }
 let hiddenCols = JSON.parse(localStorage.getItem('tms_hiddenCols')) || { 'col-alertas': false, 'col-historial': false };
 
-window.estatusData = { 
-    "s1":{nombre:"1. Ruta",col:"#10b981"}, "s2":{nombre:"1.1 PARADO",col:"#ef4444"}, "s3":{nombre:"1.2 RETEN",col:"#d97706"}, 
-    "s4":{nombre:"1.3 Resguardo",col:"#8b5cf6"}, "s5":{nombre:"1.4 REGRESANDO",col:"#f59e0b"}, "s6":{nombre:"2. Incidencia",col:"#be123c"}, 
-    "s7":{nombre:"3. Cargando",col:"#64748b"}, "s8":{nombre:"4. Descargando",col:"#0284c7"}, "s9":{nombre:"5. Patio GDL",col:"#06b6d4"}, 
-    "s10":{nombre:"6. Patio Reynosa",col:"#14b8a6"}, "s11":{nombre:"7. Taller",col:"#94a3b8"}, "s12":{nombre:"8. Finalizado",col:"#1e40af"}, 
-    "s13":{nombre:"9. Baja cobertura",col:"#fbbf24"}, "s14":{nombre:"ALIMENTOS",col:"#f59e0b"} 
-};
+window.estatusData = { "s1":{nombre:"1. Ruta",col:"#10b981"}, "s2":{nombre:"1.1 PARADO",col:"#ef4444"}, "s3":{nombre:"1.2 RETEN",col:"#d97706"}, "s4":{nombre:"1.3 Resguardo",col:"#8b5cf6"}, "s5":{nombre:"1.4 REGRESANDO",col:"#f59e0b"}, "s6":{nombre:"2. Incidencia",col:"#be123c"}, "s7":{nombre:"3. Cargando",col:"#64748b"}, "s8":{nombre:"4. Descargando",col:"#0284c7"}, "s9":{nombre:"5. Patio GDL",col:"#06b6d4"}, "s10":{nombre:"6. Patio Reynosa",col:"#14b8a6"}, "s11":{nombre:"7. Taller",col:"#94a3b8"}, "s12":{nombre:"8. Finalizado",col:"#1e40af"}, "s13":{nombre:"9. Baja cobertura",col:"#fbbf24"}, "s14":{nombre:"ALIMENTOS",col:"#f59e0b"} };
 
-document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === 'visible' && motorArrancado) { sincronizarFlotas(); }
-});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === 'visible' && motorArrancado) { sincronizarFlotas(); } });
 
-// --- FUNCIONES MATEMÁTICAS BLINDADAS ---
+// --- FUNCIONES MATEMÁTICAS ---
 function getSafeNumber(val) { if (!val) return null; let n = Number(val); return isNaN(n) ? null : n; }
 function limpiarStr(str) { return str ? String(str).trim().replace(/\s+/g, ' ').toUpperCase() : ""; }
+function escapeSafe(str) { return str ? String(str).replace(/'/g, "\\'") : ""; }
 function hexToRgba(hex, alpha) { if(!hex || hex.length !== 7) return `rgba(15, 23, 42, ${alpha})`; let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16); return `rgba(${r}, ${g}, ${b}, ${alpha})`; }
-function encontrarUnidad(v, vId) {
-    if(!v) return null;
-    if(v.wialonId && v.wialonId !== "EXTERNO" && unidadesGlobales[v.wialonId]) return unidadesGlobales[v.wialonId];
-    let n = limpiarStr(v.unidadN || v.unidadFallback); let norm = n.replace(/[\s\-]/g, "");
-    for(let k in unidadesGlobales) { let uName = limpiarStr(unidadesGlobales[k].name); if(uName === n || uName.replace(/[\s\-]/g, "") === norm) return unidadesGlobales[k]; }
-    if(unidadesGlobales[vId]) return unidadesGlobales[vId]; return null; 
-}
+function encontrarUnidad(v, vId) { if(!v) return null; if(v.wialonId && v.wialonId !== "EXTERNO" && unidadesGlobales[v.wialonId]) return unidadesGlobales[v.wialonId]; let n = limpiarStr(v.unidadN || v.unidadFallback); let norm = n.replace(/[\s\-]/g, ""); for(let k in unidadesGlobales) { let uName = limpiarStr(unidadesGlobales[k].name); if(uName === n || uName.replace(/[\s\-]/g, "") === norm) return unidadesGlobales[k]; } if(unidadesGlobales[vId]) return unidadesGlobales[vId]; return null; }
 function isInsidePolygon(point, vs) { let x = point[0], y = point[1], inside = false; for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) { let xi = vs[i].x, yi = vs[i].y, xj = vs[j].x, yj = vs[j].y; let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi); if (intersect) inside = !inside; } return inside; }
 function getDistanceMeters(lat1, lon1, lat2, lon2) { const R = 6371000; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180; const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2); return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); }
-function resolverGeocerca(lat, lon) {
-    if(!geocercasNativas || geocercasNativas.length === 0) return null;
-    for(let z of geocercasNativas) { if(!z.p) continue; if(z.t === 3) { let r = z.p[0].r || 50; if(getDistanceMeters(lat, lon, z.p[0].y, z.p[0].x) <= r) return limpiarStr(z.n); } else { if(isInsidePolygon([lon, lat], z.p)) return limpiarStr(z.n); } } return null;
-}
+function resolverGeocerca(lat, lon) { if(!geocercasNativas || geocercasNativas.length === 0) return null; for(let z of geocercasNativas) { if(!z.p) continue; if(z.t === 3) { let r = z.p[0].r || 50; if(getDistanceMeters(lat, lon, z.p[0].y, z.p[0].x) <= r) return limpiarStr(z.n); } else { if(isInsidePolygon([lon, lat], z.p)) return limpiarStr(z.n); } } return null; }
 function formatearFechaElegante(ms) { let n = getSafeNumber(ms); if (!n) return "--:--"; let d = new Date(n); if (isNaN(d.getTime())) return "--:--"; let meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]; return `${String(d.getDate()).padStart(2, '0')} ${meses[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
 function formatTimeFriendly(ms) { let n = getSafeNumber(ms); if (!n) return "--:--"; let d = new Date(n); if(isNaN(d.getTime())) return "--:--"; let today = new Date(); let timeStr = d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'}); if(d.toDateString() === today.toDateString()) return timeStr; return d.toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) + " " + timeStr; }
 function formatTimeDiff(mins) { let m = Math.abs(getSafeNumber(mins) || 0); let d = Math.floor(m / 1440); let h = Math.floor((m % 1440) / 60); let remM = m % 60; let str = []; if(d > 0) str.push(`${d}d`); if(h > 0) str.push(`${h}h`); if(remM > 0 || str.length === 0) str.push(`${remM}m`); return str.join(' '); }
 function timeAgo(unixSecs) { if(!unixSecs) return "N/A"; let diff = Math.floor(Date.now()/1000) - unixSecs; if(diff < 60) return `${diff}s`; if(diff < 3600) return `${Math.floor(diff/60)}m`; if(diff < 86400) return `${Math.floor(diff/3600)}h`; let d = Math.floor(diff/86400); let h = Math.floor((diff%86400)/3600); return `${d}d ${h}h`; }
 
 // --- CONTROL DE COLUMNAS ---
-function inicializarMenuColumnas() {
-    let menuHtml = '';
-    colOrder.forEach((k, index) => {
+window.inicializarMenuColumnas = function() {
+    let menuHtml = ''; colOrder.forEach((k, index) => {
         let checked = !hiddenCols[k] ? 'checked' : '';
         let btnUp = index > 0 ? `<i class="fa-solid fa-arrow-up mx-1 text-primary cp fs-6" onclick="moverColumna(${index}, -1)"></i>` : `<i class="fa-solid fa-arrow-up mx-1 text-muted fs-6" style="opacity:0.2"></i>`;
         let btnDown = index < colOrder.length - 1 ? `<i class="fa-solid fa-arrow-down mx-1 text-primary cp fs-6" onclick="moverColumna(${index}, 1)"></i>` : `<i class="fa-solid fa-arrow-down mx-1 text-muted fs-6" style="opacity:0.2"></i>`;
@@ -140,11 +94,11 @@ function inicializarMenuColumnas() {
         menuHtml += `<li class="dropdown-item d-flex justify-content-between align-items-center py-1 px-3 border-bottom"><label class="cp mb-0 flex-grow-1"><input type="checkbox" class="form-check-input me-2" onchange="toggleCol('${k}', this.checked)" ${checked}> <span style="font-size:0.7rem; font-weight:bold;">${tituloLimpio}</span></label><div class="d-flex bg-white rounded border px-2 py-1 shadow-sm">${btnUp}${btnDown}</div></li>`;
     });
     document.getElementById('column-toggles').innerHTML = menuHtml; Object.keys(hiddenCols).forEach(k => toggleCol(k, !hiddenCols[k], false));
-}
-function moverColumna(idx, dir) { if(idx + dir < 0 || idx + dir >= colOrder.length) return; let temp = colOrder[idx]; colOrder[idx] = colOrder[idx + dir]; colOrder[idx + dir] = temp; localStorage.setItem('tms_colOrder', JSON.stringify(colOrder)); inicializarMenuColumnas(); solicitarRenderizado(); }
-function toggleCol(colClass, isVisible, save = true) { if(save) { hiddenCols[colClass] = !isVisible; localStorage.setItem('tms_hiddenCols', JSON.stringify(hiddenCols)); } document.querySelectorAll('.' + colClass).forEach(el => { if(isVisible) el.classList.remove('d-none'); else el.classList.add('d-none'); }); }
-function resetColumnas() { localStorage.removeItem('tms_colOrder'); localStorage.removeItem('tms_hiddenCols'); localStorage.removeItem('tms_colWidths'); location.reload(); }
-function aplicarAnchosGuardados() { let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {}; let css = ''; Object.keys(columnasDef).forEach(c => { let w = savedWidths[c] || columnasDef[c].ancho; css += `.${c} { width: ${w}px !important; min-width: ${w}px !important; max-width: ${w}px !important; }\n`; }); let styleEl = document.getElementById('dynamic-col-styles'); if(!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'dynamic-col-styles'; document.head.appendChild(styleEl); } styleEl.innerHTML = css; }
+};
+window.moverColumna = function(idx, dir) { if(idx + dir < 0 || idx + dir >= colOrder.length) return; let temp = colOrder[idx]; colOrder[idx] = colOrder[idx + dir]; colOrder[idx + dir] = temp; localStorage.setItem('tms_colOrder', JSON.stringify(colOrder)); inicializarMenuColumnas(); solicitarRenderizado(); };
+window.toggleCol = function(colClass, isVisible, save = true) { if(save) { hiddenCols[colClass] = !isVisible; localStorage.setItem('tms_hiddenCols', JSON.stringify(hiddenCols)); } document.querySelectorAll('.' + colClass).forEach(el => { if(isVisible) el.classList.remove('d-none'); else el.classList.add('d-none'); }); };
+window.resetColumnas = function() { localStorage.removeItem('tms_colOrder'); localStorage.removeItem('tms_hiddenCols'); localStorage.removeItem('tms_colWidths'); location.reload(); };
+window.aplicarAnchosGuardados = function() { let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {}; let css = ''; Object.keys(columnasDef).forEach(c => { let w = savedWidths[c] || columnasDef[c].ancho; css += `.${c} { width: ${w}px !important; min-width: ${w}px !important; max-width: ${w}px !important; }\n`; }); let styleEl = document.getElementById('dynamic-col-styles'); if(!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'dynamic-col-styles'; document.head.appendChild(styleEl); } styleEl.innerHTML = css; };
 
 let isResizing = false; let currentTh = null; let startX = 0; let startWidth = 0;
 document.addEventListener('mousedown', function(e) { if (e.target.classList.contains('resizer')) { isResizing = true; currentTh = e.target.parentElement; startX = e.pageX; startWidth = currentTh.offsetWidth; e.target.classList.add('resizing'); document.body.style.userSelect = 'none'; } });
@@ -152,10 +106,8 @@ document.addEventListener('mousemove', function(e) { if (isResizing && currentTh
 document.addEventListener('mouseup', function(e) { if (isResizing) { isResizing = false; let colClass = Array.from(currentTh.classList).find(c => c.startsWith('col-')); if (colClass) { let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {}; savedWidths[colClass] = currentTh.offsetWidth; localStorage.setItem('tms_colWidths', JSON.stringify(savedWidths)); aplicarAnchosGuardados(); let liveStyle = document.getElementById('live-resize-style'); if(liveStyle) liveStyle.innerHTML = ''; } document.querySelectorAll('.resizer').forEach(r => r.classList.remove('resizing')); currentTh = null; document.body.style.userSelect = ''; } });
 
 function getHeadersRow(cId) {
-    let html = `<tr class="header-columnas shadow-sm client-group-${cId}">`;
-    colOrder.forEach((c) => {
-        let titulo = columnasDef[c].titulo; let display = hiddenCols[c] ? 'd-none' : ''; 
-        let tituloModificado = titulo;
+    let html = `<tr class="header-columnas shadow-sm client-group-${cId}">`; colOrder.forEach((c) => {
+        let titulo = columnasDef[c].titulo; let display = hiddenCols[c] ? 'd-none' : ''; let tituloModificado = titulo;
         if(c === 'col-unidad' && sortState.column === 'unidad') tituloModificado = titulo.replace('sort-icon', 'sort-icon active');
         if(c === 'col-ruta' && sortState.column === 'ruta') tituloModificado = titulo.replace('sort-icon', 'sort-icon active');
         if(c === 'col-estatus' && sortState.column === 'estatus') tituloModificado = titulo.replace('sort-icon', 'sort-icon active');
@@ -164,11 +116,11 @@ function getHeadersRow(cId) {
 }
 
 // --- MAPA FLUIDO ---
-function initMap() { lmap = L.map('map').setView([23.6, -102.5], 5); L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(lmap); mapLayerGroup = L.layerGroup().addTo(lmap); geofenceLayerGroup = L.layerGroup().addTo(lmap); }
-function toggleMap() { document.getElementById("mainWorkspace").classList.toggle("show-map"); if(!lmap) initMap(); mapVisible = !mapVisible; setTimeout(() => { if(lmap) { lmap.invalidateSize(); actualizarMarcadoresMapa(); pintarGeocercasEnMapa(); } }, 400); }
+window.initMap = function() { lmap = L.map('map').setView([23.6, -102.5], 5); L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(lmap); mapLayerGroup = L.layerGroup().addTo(lmap); geofenceLayerGroup = L.layerGroup().addTo(lmap); };
+window.toggleMap = function() { document.getElementById("mainWorkspace").classList.toggle("show-map"); if(!lmap) initMap(); mapVisible = !mapVisible; setTimeout(() => { if(lmap) { lmap.invalidateSize(); actualizarMarcadoresMapa(); pintarGeocercasEnMapa(); } }, 400); };
 window.clickMapaUnidad = function(vId) { let v = viajesActivos[vId]; if(!v) return alert("Unidad no encontrada."); let uData = encontrarUnidad(v, vId); if(uData && uData.pos && uData.pos.y) { centrarUnidadMapa(uData.pos.y, uData.pos.x, vId); } else { alert("Unidad sin coordenadas GPS válidas en este momento."); } };
-function centrarUnidadMapa(lat, lon, vId) { if(!mapVisible) toggleMap(); setTimeout(() => { if(lmap) { lmap.flyTo([lat, lon], 16, { animate: true, duration: 1.5 }); if(vId && mapaMarcadores[vId]) { setTimeout(() => { mapaMarcadores[vId].openPopup(); }, 1500); } } }, 400); }
-function actualizarMarcadoresMapa() {
+window.centrarUnidadMapa = function(lat, lon, vId) { if(!mapVisible) toggleMap(); setTimeout(() => { if(lmap) { lmap.flyTo([lat, lon], 16, { animate: true, duration: 1.5 }); if(vId && mapaMarcadores[vId]) { setTimeout(() => { mapaMarcadores[vId].openPopup(); }, 1500); } } }, 400); };
+window.actualizarMarcadoresMapa = function() {
     if(!lmap || !mapLayerGroup) return; mapLayerGroup.clearLayers(); mapaMarcadores = {}; 
     Object.keys(viajesActivos).forEach(vId => {
         let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; let uData = encontrarUnidad(v, vId);
@@ -176,15 +128,15 @@ function actualizarMarcadoresMapa() {
             let isMoving = uData.pos.s > 0; let colorIcon = isMoving ? '#10b981' : '#0284c7'; let rotation = (uData.pos.c || 0) - 45;
             let markerHtml = isMoving ? `<div style="transform: rotate(${rotation}deg); color: ${colorIcon}; font-size: 22px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;"><i class="fa-solid fa-location-arrow"></i></div>` : `<div style="color: ${colorIcon}; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;"><i class="fa-solid fa-location-dot"></i></div>`;
             let customIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -14] });
-            let vel = uData.pos.s; let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let operador = v.operador || (uData.choferObj && uData.choferObj.nombre !== "Sin asignar" ? uData.choferObj.nombre : "Sin Operador");
+            let vel = uData.pos.s; let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let operador = escapeSafe(v.operador || (uData.choferObj && uData.choferObj.nombre !== "Sin asignar" ? uData.choferObj.nombre : "Sin Operador"));
             let hoverText = isMoving ? `En movimiento a ${vel} km/h (hace ${timeAgo(uData.pos.t)})` : `Unidad detenida (hace ${timeAgo(uData.pos.t)})`;
-            let popupContent = `<div style="text-align:center; min-width: 160px; font-family: 'Inter', sans-serif;"><b style="font-size:15px; color:#0f172a; text-transform:uppercase;">${uData.name}</b><br><span style="font-size:11px; color:#64748b; font-weight:bold;">${operador}</span><br><div style="margin-top:5px; margin-bottom:5px; background:${isMoving?'#10b981':'#64748b'}; color:white; border-radius:4px; padding:2px; font-weight:bold; font-size:12px;">${vel} km/h</div><b style="font-size:11px; color:#0284c7;">${est}</b><br><span style="color:#94a3b8; font-size:10px;">Act: hace ${timeAgo(uData.pos.t)}</span></div>`;
+            let popupContent = `<div style="text-align:center; min-width: 160px; font-family: 'Inter', sans-serif;"><b style="font-size:15px; color:#0f172a; text-transform:uppercase;">${escapeSafe(uData.name)}</b><br><span style="font-size:11px; color:#64748b; font-weight:bold;">${operador}</span><br><div style="margin-top:5px; margin-bottom:5px; background:${isMoving?'#10b981':'#64748b'}; color:white; border-radius:4px; padding:2px; font-weight:bold; font-size:12px;">${vel} km/h</div><b style="font-size:11px; color:#0284c7;">${est}</b><br><span style="color:#94a3b8; font-size:10px;">Act: hace ${timeAgo(uData.pos.t)}</span></div>`;
             let marker = L.marker([uData.pos.y, uData.pos.x], {icon: customIcon}).bindTooltip(hoverText, {direction: 'top', className: 'fw-bold'}).bindPopup(popupContent, {className: 'custom-popup'}).addTo(mapLayerGroup);
             mapaMarcadores[vId] = marker;
         }
     });
-}
-function pintarGeocercasEnMapa() {
+};
+window.pintarGeocercasEnMapa = function() {
     if(!lmap || !geofenceLayerGroup) return; geofenceLayerGroup.clearLayers(); let geocercasActivas = {};
     Object.values(viajesActivos).forEach(v => {
         if(typeof v !== 'object' || !v) return; if(v.origen) geocercasActivas[limpiarStr(v.origen)] = "origen";
@@ -200,306 +152,141 @@ function pintarGeocercasEnMapa() {
             if(shape) { shape.bindTooltip(txtLabel, { permanent: true, direction: 'top', className: cssClass }).addTo(geofenceLayerGroup); }
         }
     });
-}
+};
 
 // --- HUBS DE NOTIFICACIONES ---
 db.ref('notificaciones_pendientes').on('value', snap => {
     let data = snap.val() || {}; alertasSeguridad = {}; alertasLogistica = {};
-    Object.keys(data).forEach(k => {
-        let notif = data[k]; notif.id = k;
-        if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) alertasLogistica[k] = notif;
-        else alertasSeguridad[k] = notif;
-    });
-    actualizarBotonesHubs();
+    Object.keys(data).forEach(k => { let notif = data[k]; notif.id = k; if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) alertasLogistica[k] = notif; else alertasSeguridad[k] = notif; }); actualizarBotonesHubs();
 });
-
-function enviarNotificacionPersistente(vId, unidadName, tipo, detalle) {
-    let idLogico = vId + "_" + tipo;
-    db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => {
-        if(!snap.exists()) { db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); }
-    });
-}
-
-function actualizarBotonesHubs() {
+window.enviarNotificacionPersistente = function(vId, unidadName, tipo, detalle) {
+    let idLogico = vId + "_" + tipo; db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { if(!snap.exists()) { db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); } });
+};
+window.actualizarBotonesHubs = function() {
     let cSeg = Object.keys(alertasSeguridad).length; let cLog = Object.keys(alertasLogistica).length;
     let bSeg = document.getElementById("btnHubSeguridad"); let lSeg = document.getElementById("lblCountSeguridad");
     if(bSeg && lSeg) { if(cSeg>0) { lSeg.innerText=cSeg; bSeg.classList.remove("d-none"); } else { bSeg.classList.add("d-none"); try{ bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); }catch(e){} } }
     let bLog = document.getElementById("btnHubLogistico"); let lLog = document.getElementById("lblCountLogistico");
     if(bLog && lLog) { if(cLog>0) { lLog.innerText=cLog; bLog.classList.remove("d-none"); } else { bLog.classList.add("d-none"); try{ bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); }catch(e){} } }
-}
-
+};
 window.abrirHubSeguridad = function() {
     let container = document.getElementById("listaHubSeguridad"); container.innerHTML = "";
     Object.values(alertasSeguridad).forEach(n => {
         let icon = n.tipo === "PARADA" ? "fa-stop text-danger" : (n.tipo === "REANUDACION" ? "fa-play text-success" : "fa-triangle-exclamation text-warning");
-        container.innerHTML += `<div class="bg-white p-3 rounded shadow-sm border border-danger mb-3"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${n.unidad}</div><div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Sensor: ${formatTimeFriendly(n.t_evento)})</div></div></div><textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="2" placeholder="Justificación o anotación..."></textarea><div class="d-flex gap-2 justify-content-end"><button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', true)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button><button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', true)"><i class="fa-solid fa-check"></i> Confirmar y Guardar</button></div></div>`;
+        container.innerHTML += `<div class="bg-white p-3 rounded shadow-sm border border-danger mb-3"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${escapeSafe(n.unidad)}</div><div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Sensor: ${formatTimeFriendly(n.t_evento)})</div></div></div><textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="2" placeholder="Justificación o anotación..."></textarea><div class="d-flex gap-2 justify-content-end"><button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', true)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button><button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', true)"><i class="fa-solid fa-check"></i> Confirmar y Guardar</button></div></div>`;
     }); new bootstrap.Modal(document.getElementById('modalHubSeguridad')).show();
 };
-
 window.abrirHubLogistico = function() {
     let container = document.getElementById("listaHubLogistico"); container.innerHTML = "";
     Object.values(alertasLogistica).forEach(n => {
-        let icon = n.tipo === "SALIDA" ? "fa-rocket text-primary" : (n.tipo === "ARRIBO" ? "fa-map-pin text-success" : "fa-flag-checkered text-dark");
-        let borderClass = n.tipo === "SALIDA" ? "border-primary" : (n.tipo === "ARRIBO" ? "border-success" : "border-dark");
-        container.innerHTML += `<div class="bg-white p-3 rounded shadow-sm border ${borderClass} mb-3"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${n.unidad}</div><div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Sensor: ${formatTimeFriendly(n.t_evento)})</div></div></div><textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="1" placeholder="Nota adicional (opcional)..."></textarea><div class="d-flex gap-2 justify-content-end"><button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', false)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button><button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', false)"><i class="fa-solid fa-check"></i> Confirmar Evento</button></div></div>`;
+        let icon = n.tipo === "SALIDA" ? "fa-rocket text-primary" : (n.tipo === "ARRIBO" ? "fa-map-pin text-success" : "fa-flag-checkered text-dark"); let borderClass = n.tipo === "SALIDA" ? "border-primary" : (n.tipo === "ARRIBO" ? "border-success" : "border-dark");
+        container.innerHTML += `<div class="bg-white p-3 rounded shadow-sm border ${borderClass} mb-3"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${escapeSafe(n.unidad)}</div><div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Sensor: ${formatTimeFriendly(n.t_evento)})</div></div></div><textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="1" placeholder="Nota adicional (opcional)..."></textarea><div class="d-flex gap-2 justify-content-end"><button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', false)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button><button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', false)"><i class="fa-solid fa-check"></i> Confirmar Evento</button></div></div>`;
     }); new bootstrap.Modal(document.getElementById('modalHubLogistico')).show();
 };
-
 window.confirmarNotificacion = function(id, isSeguridad) {
     let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
     let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : "";
     if(isSeguridad && n.tipo === "PARADA" && !nota) { return alert("⚠️ Debes escribir una justificación obligatoria para la parada antes de confirmar."); }
-    let vId = n.vId; let timeReaccion = Date.now(); let timeReal = n.t_evento;
-    let detalleLog = `Hora Real de Sensor: ${formatTimeFriendly(timeReal)}`; if (nota) detalleLog += ` | Nota: ${nota}`;
+    let vId = n.vId; let timeReaccion = Date.now(); let timeReal = n.t_evento; let detalleLog = `Hora Real de Sensor: ${formatTimeFriendly(timeReal)}`; if (nota) detalleLog += ` | Nota: ${nota}`;
     if (n.tipo === "SALIDA") { db.ref('viajes_activos/'+vId).update({ t_salida: timeReal, t_confirmacion_salida: timeReaccion }); registrarLog(vId, 'Confirmó SALIDA', detalleLog); } 
     else if (n.tipo === "ARRIBO") { db.ref('viajes_activos/'+vId).update({ t_arribo: timeReal, t_confirmacion_arribo: timeReaccion, estatus: 's8' }); registrarLog(vId, 'Confirmó ARRIBO', detalleLog); } 
     else if (n.tipo === "FINALIZACION") { db.ref('viajes_activos/'+vId).update({ t_fin: timeReal, t_confirmacion_fin: timeReaccion, estatus: 's12' }); registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); } 
     else if (n.tipo === "PARADA") { db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: true }); registrarLog(vId, 'Justificó PARADA', detalleLog); } 
     else if (n.tipo === "REANUDACION") { db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); registrarLog(vId, 'Confirmó REANUDACIÓN', detalleLog); } 
     else if (n.tipo === "DESCONEXION") { registrarLog(vId, 'Confirmó DESCONEXIÓN', detalleLog); }
-    db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("✅ Evento procesado con éxito.");
-    if(isSeguridad) abrirHubSeguridad(); else abrirHubLogistico();
+    db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("✅ Evento procesado con éxito."); if(isSeguridad) abrirHubSeguridad(); else abrirHubLogistico();
 };
-
 window.rechazarNotificacion = function(id, isSeguridad) {
     let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
-    let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : "";
-    let detalleLog = `Descartado por el Monitorista como Falsa Alarma`; if(nota) detalleLog += ` | Nota: ${nota}`;
-    registrarLog(n.vId, `Rechazó alerta de ${n.tipo}`, detalleLog);
-    db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("🚫 Evento descartado.");
-    if(isSeguridad) abrirHubSeguridad(); else abrirHubLogistico();
+    let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : ""; let detalleLog = `Descartado por el Monitorista como Falsa Alarma`; if(nota) detalleLog += ` | Nota: ${nota}`;
+    registrarLog(n.vId, `Rechazó alerta de ${n.tipo}`, detalleLog); db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("🚫 Evento descartado."); if(isSeguridad) abrirHubSeguridad(); else abrirHubLogistico();
 };
 
-// --- ACCIONES PRINCIPALES Y WHATSAPP ---
+// --- ACCIONES Y WHATSAPP ---
 window.cambiarEstatus = function(val, vId) { 
-    let v = viajesActivos[vId];
-    if (val === 's8' && (!v || !v.t_arribo)) { if (confirm("Esta unidad no tiene registrado su horario de ARRIBO.\n\n¿Deseas marcar el arribo en este momento (Hora actual)?")) { db.ref(`viajes_activos/${vId}/t_arribo`).set(Date.now()); registrarLog(vId, 'Marcó ARRIBO', 'Automático'); } }
+    let v = viajesActivos[vId]; if (val === 's8' && (!v || !v.t_arribo)) { if (confirm("Esta unidad no tiene registrado su horario de ARRIBO.\n\n¿Deseas marcar el arribo en este momento (Hora actual)?")) { db.ref(`viajes_activos/${vId}/t_arribo`).set(Date.now()); registrarLog(vId, 'Marcó ARRIBO', 'Automático'); } }
     let txt = window.estatusData[val].nombre; registrarLog(vId, 'Cambió estatus a', txt); db.ref('viajes_activos/'+vId+'/estatus').set(val); 
 };
-
 window.editarUbicacionManual = function(vId) { 
-    let v = viajesActivos[vId]; if(!v) return; let uName = limpiarStr(v.unidadN || v.unidadFallback); 
-    let u = prompt(`Escribir ubicación o coordenadas (ej. 20.123, -100.456) para ${uName}:`, v.ubicacion_manual_raw || v.ubicacion_manual || ''); 
+    let v = viajesActivos[vId]; if(!v) return; let uName = limpiarStr(v.unidadN || v.unidadFallback); let u = prompt(`Escribir ubicación o coordenadas (ej. 20.123, -100.456) para ${uName}:`, v.ubicacion_manual_raw || v.ubicacion_manual || ''); 
     if(u !== null && u.trim() !== '') { 
         let rawText = limpiarStr(u); let locText = rawText; let isCoords = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?)[,\s]+[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/.test(rawText);
-        if (isCoords) { let coords = rawText.replace(/\s/g, ''); locText = `<a href="https://www.google.com/maps?q=${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`; }
+        if (isCoords) { let coords = rawText.replace(/\s/g, ''); locText = `<a href="https://www.google.com/maps?q=lat,lng{coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`; }
         db.ref(`viajes_activos/${vId}`).update({ ubicacion_manual: locText, ubicacion_manual_raw: rawText, t_ubicacion_manual: Date.now() }); registrarLog(vId, 'Actualizó Ubicación', rawText); 
     } 
 };
-
-function registrarLog(viajeId, accion, detalle = "") { let usrName = currentUser ? currentUser.nom : "Sistema"; db.ref(`viajes_activos/${viajeId}/log`).push({ t: Date.now(), usr: usrName, act: accion, det: detalle }); }
-function cerrarSesion() { localStorage.clear(); location.reload(); }
-
-window.finalizarViaje = function(vId, nombre) {
-    if(confirm(`¿Estás seguro de archivar el viaje de la unidad ${nombre}?`)) {
-        db.ref('viajes_activos/' + vId).once('value').then(snap => { let data = snap.val(); if(data) { data.fecha_archivado = Date.now(); db.ref('viajes_archivados/' + vId).set(data).then(() => { db.ref('viajes_activos/' + vId).remove(); mostrarNotificacion(`Viaje de ${nombre} archivado exitosamente.`); }); } }).catch(err => alert("Error al archivar: " + err.message));
-    }
-};
+window.registrarLog = function(viajeId, accion, detalle = "") { let usrName = currentUser ? currentUser.nom : "Sistema"; db.ref(`viajes_activos/${viajeId}/log`).push({ t: Date.now(), usr: usrName, act: accion, det: detalle }); };
+window.cerrarSesion = function() { localStorage.clear(); location.reload(); };
+window.finalizarViaje = function(vId, nombre) { if(confirm(`¿Estás seguro de archivar el viaje de la unidad ${nombre}?`)) { db.ref('viajes_activos/' + vId).once('value').then(snap => { let data = snap.val(); if(data) { data.fecha_archivado = Date.now(); db.ref('viajes_archivados/' + vId).set(data).then(() => { db.ref('viajes_activos/' + vId).remove(); mostrarNotificacion(`Viaje de ${nombre} archivado exitosamente.`); }); } }).catch(err => alert("Error al archivar: " + err.message)); } };
 
 document.getElementById('modalArchivarMasivo')?.addEventListener('show.bs.modal', () => { let sel = document.getElementById("selClienteArchivar"); sel.innerHTML = '<option value="TODOS">🚨 TODOS LOS CLIENTES 🚨</option>'; Object.keys(dataClientes).forEach(k => { sel.innerHTML += `<option value="${k}">${dataClientes[k].nombre}</option>`; }); });
-
-window.ejecutarArchivadoMasivo = function() {
-    let cId = document.getElementById("selClienteArchivar").value; if(!cId) return alert("Selecciona un cliente válido."); let nombreCli = cId === "TODOS" ? "TODOS LOS CLIENTES" : dataClientes[cId]?.nombre;
-    if(!confirm(`¿Estás seguro de archivar TODOS los viajes con estatus "8. Finalizado" de ${nombreCli}?`)) return;
-    let cont = 0; let promesas = [];
-    Object.keys(viajesActivos).forEach(vId => { let v = viajesActivos[vId]; if((cId === "TODOS" || v.cliente === cId) && v.estatus === "s12") { v.fecha_archivado = Date.now(); let p = db.ref('viajes_archivados/' + vId).set(v).then(() => db.ref('viajes_activos/' + vId).remove()); promesas.push(p); cont++; } });
-    if(cont === 0) return alert(`No se encontraron viajes con estatus "8. Finalizado" para ${nombreCli}.`);
-    Promise.all(promesas).then(() => { mostrarNotificacion(`🧹 Limpieza completa: ${cont} viajes archivados.`); try{ bootstrap.Modal.getInstance(document.getElementById('modalArchivarMasivo')).hide(); }catch(e){} });
-};
-
-window.abrirModalLog = function(uId, uName) { 
-    document.getElementById("log_uid").value = uId; document.getElementById("log_uName").innerText = uName; document.getElementById("log_txt").value = ""; 
-    let logsObj = viajesActivos[uId]?.log || {}; let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t); 
-    let html = logsArr.map(l => `<div class="mb-2 border-bottom pb-1"><div style="font-size:0.65rem; color:#6c757d; font-weight:bold; margin-bottom:1px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(l.t)}</div><b class="text-dark">${l.usr}:</b> <span class="text-primary">${l.act}</span> <span class="text-muted">${l.det||''}</span></div>`).join(''); 
-    document.getElementById("log_container").innerHTML = html || '<div class="text-muted text-center p-2 mt-3">Sin eventos.</div>'; 
-    new bootstrap.Modal(document.getElementById('modalLog')).show(); 
-};
-
-window.guardarLogManual = function() { 
-    let uId = document.getElementById("log_uid").value; let txt = limpiarStr(document.getElementById("log_txt").value); 
-    if(!txt) return; registrarLog(uId, "Agregó Nota", txt); 
-    try { bootstrap.Modal.getInstance(document.getElementById('modalLog')).hide(); } catch(e){} mostrarNotificacion("Nota guardada en el historial.");
-};
+window.ejecutarArchivadoMasivo = function() { let cId = document.getElementById("selClienteArchivar").value; if(!cId) return alert("Selecciona un cliente válido."); let nombreCli = cId === "TODOS" ? "TODOS LOS CLIENTES" : dataClientes[cId]?.nombre; if(!confirm(`¿Estás seguro de archivar TODOS los viajes con estatus "8. Finalizado" de ${nombreCli}?`)) return; let cont = 0; let promesas = []; Object.keys(viajesActivos).forEach(vId => { let v = viajesActivos[vId]; if((cId === "TODOS" || v.cliente === cId) && v.estatus === "s12") { v.fecha_archivado = Date.now(); let p = db.ref('viajes_archivados/' + vId).set(v).then(() => db.ref('viajes_activos/' + vId).remove()); promesas.push(p); cont++; } }); if(cont === 0) return alert(`No se encontraron viajes con estatus "8. Finalizado" para ${nombreCli}.`); Promise.all(promesas).then(() => { mostrarNotificacion(`🧹 Limpieza completa: ${cont} viajes archivados.`); try{ bootstrap.Modal.getInstance(document.getElementById('modalArchivarMasivo')).hide(); }catch(e){} }); };
+window.abrirModalLog = function(uId, uName) { document.getElementById("log_uid").value = uId; document.getElementById("log_uName").innerText = uName; document.getElementById("log_txt").value = ""; let logsObj = viajesActivos[uId]?.log || {}; let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t); let html = logsArr.map(l => `<div class="mb-2 border-bottom pb-1"><div style="font-size:0.65rem; color:#6c757d; font-weight:bold; margin-bottom:1px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(l.t)}</div><b class="text-dark">${l.usr}:</b> <span class="text-primary">${l.act}</span> <span class="text-muted">${l.det||''}</span></div>`).join(''); document.getElementById("log_container").innerHTML = html || '<div class="text-muted text-center p-2 mt-3">Sin eventos.</div>'; new bootstrap.Modal(document.getElementById('modalLog')).show(); };
+window.guardarLogManual = function() { let uId = document.getElementById("log_uid").value; let txt = limpiarStr(document.getElementById("log_txt").value); if(!txt) return; registrarLog(uId, "Agregó Nota", txt); try { bootstrap.Modal.getInstance(document.getElementById('modalLog')).hide(); } catch(e){} mostrarNotificacion("Nota guardada en el historial."); };
 
 window.enviarWA = function(vId) {
-    let v = viajesActivos[vId]; if(!v) return;
-    let uData = encontrarUnidad(v, vId); let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback);
-    let estNombre = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0;
-    let cliId = v.cliente || "Sin_Cliente"; let subId = v.subcliente || "N/A";
-    let cliName = (dataClientes[cliId] && dataClientes[cliId].nombre) ? dataClientes[cliId].nombre : "SIN CLIENTE";
-    let subName = (dataClientes[cliId] && dataClientes[cliId].subclientes && dataClientes[cliId].subclientes[subId]) ? dataClientes[cliId].subclientes[subId].nombre : "";
-    let subText = subName && subName !== "N/A" ? ` -> ${subName}` : '';
-    let addrText = v.ubicacion_manual_raw || "Buscando..."; let locLink = addrText; let geoTextWA = "";
-    
-    if (pos) {
-        let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
-        if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-        let domAddr = document.getElementById("addr_" + vId);
-        if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
-    }
-    
-    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-    let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
-    let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
-    
-    let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${contStr}\n🛣️ *Ruta Actual:* ${cOrigen} ➔ ${cDestino}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank'); 
+    let v = viajesActivos[vId]; if(!v) return; let uData = encontrarUnidad(v, vId); let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback); let estNombre = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0; let cliId = v.cliente || "Sin_Cliente"; let subId = v.subcliente || "N/A"; let cliName = (dataClientes[cliId] && dataClientes[cliId].nombre) ? dataClientes[cliId].nombre : "SIN CLIENTE"; let subName = (dataClientes[cliId] && dataClientes[cliId].subclientes && dataClientes[cliId].subclientes[subId]) ? dataClientes[cliId].subclientes[subId].nombre : ""; let subText = subName && subName !== "N/A" ? ` -> ${subName}` : ''; let addrText = v.ubicacion_manual_raw || "Buscando..."; let locLink = addrText; let geoTextWA = "";
+    if (pos) { let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x); if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`; let domAddr = document.getElementById("addr_" + vId); if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; } locLink = `${addrText} \nhttps://www.google.com/maps?q=lat,lng${pos.y},${pos.x}`; }
+    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A"; let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
+    let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${contStr}\n🛣️ *Ruta Actual:* ${cOrigen} ➔ ${cDestino}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank'); 
 };
-
 window.generarReporteGrupal = function(cId, sId, titulo) {
-    if(!datosAgrupadosGlobal[cId] || !datosAgrupadosGlobal[cId][sId]) return;
-    let arrViajes = datosAgrupadosGlobal[cId][sId]; let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
-    
+    if(!datosAgrupadosGlobal[cId] || !datosAgrupadosGlobal[cId][sId]) return; let arrViajes = datosAgrupadosGlobal[cId][sId]; let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
     arrViajes.forEach(({v, vId}) => {
-        let uData = encontrarUnidad(v, vId); let name = limpiarStr(v.unidadN || v.unidadFallback);
-        let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let vel = pos ? pos.s : 0;
-        let locLink = v.ubicacion_manual_raw || "Manual"; let geoTextWA = "";
-        
-        if (pos) {
-            let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
-            if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`; 
-            locLink = `https://www.google.com/maps?q=${pos.y},${pos.x}`;
-        }
-        
-        let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-        let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
-        let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
-        
+        let uData = encontrarUnidad(v, vId); let name = limpiarStr(v.unidadN || v.unidadFallback); let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let vel = pos ? pos.s : 0; let locLink = v.ubicacion_manual_raw || "Manual"; let geoTextWA = "";
+        if (pos) { let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x); if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`; locLink = `https://www.google.com/maps?q=lat,lng${pos.y},${pos.x}`; }
+        let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A"; let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
         txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${contStr}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${cOrigen} ➔ ${cDestino}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
-    });
-    txt += `_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
+    }); txt += `_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
 };
 
+// --- CAPTURA INTELIGENTE CON BORRADO ABSOLUTO ---
 window.generarCapturaCliente = async function(cId, cliName) {
     let tableWrap = document.getElementById('scrollContainer'); let allRows = document.querySelectorAll('#units-body tr'); let hiddenRows = [];
     allRows.forEach(r => { if(!r.classList.contains(`client-group-${cId}`)) { hiddenRows.push({el: r, display: r.style.display}); r.style.display = 'none'; } });
-    
-    // RAYO BORRADOR PARA LA CAPTURA ABSOLUTA
-    let colsToHide = document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .col-historial');
-    let originalDisplaysCols = []; colsToHide.forEach(el => { originalDisplaysCols.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
-
-    let extraHides = document.querySelectorAll('.dropdown-toggle, .btn-dots, .fw-bold.text-muted.user-select-all.mt-1');
-    let originalDisplaysExtras = []; extraHides.forEach(el => { originalDisplaysExtras.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
-    
-    let oldHeight = tableWrap.style.height; let oldMaxHeight = tableWrap.style.maxHeight; let oldOverflow = tableWrap.style.overflow;
-    tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible';
-    let oldW = document.getElementById("mainTable").style.width; document.getElementById("mainTable").style.width = "max-content";
-    
+    let colsToHide = document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .col-historial'); let originalDisplaysCols = []; colsToHide.forEach(el => { originalDisplaysCols.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
+    let extraHides = document.querySelectorAll('.dropdown-toggle, .btn-dots, .fw-bold.text-muted.user-select-all.mt-1'); let originalDisplaysExtras = []; extraHides.forEach(el => { originalDisplaysExtras.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
+    let oldHeight = tableWrap.style.height; let oldMaxHeight = tableWrap.style.maxHeight; let oldOverflow = tableWrap.style.overflow; tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible'; let oldW = document.getElementById("mainTable").style.width; document.getElementById("mainTable").style.width = "max-content";
     await new Promise(r => setTimeout(r, 400));
-    try {
-        let canvas = await html2canvas(document.getElementById('mainTable'), { scale: 2, backgroundColor: '#f1f5f9', useCORS: true });
-        canvas.toBlob(function(blob) {
-            currentCaptureBlob = blob; document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob);
-            new bootstrap.Modal(document.getElementById('modalPreviewCaptura')).show();
-        }, 'image/png');
-    } catch(e) { console.error(e); alert("Error al generar captura de pantalla."); } 
-    finally {
-        tableWrap.style.height = oldHeight; tableWrap.style.maxHeight = oldMaxHeight; tableWrap.style.overflow = oldOverflow;
-        document.getElementById("mainTable").style.width = oldW; 
-        hiddenRows.forEach(item => item.el.style.display = item.display);
-        colsToHide.forEach((el, i) => el.style.display = originalDisplaysCols[i].disp);
-        extraHides.forEach((el, i) => el.style.display = originalDisplaysExtras[i].disp);
-    }
+    try { let canvas = await html2canvas(document.getElementById('mainTable'), { scale: 2, backgroundColor: '#f1f5f9', useCORS: true }); canvas.toBlob(function(blob) { currentCaptureBlob = blob; document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob); new bootstrap.Modal(document.getElementById('modalPreviewCaptura')).show(); }, 'image/png'); } 
+    catch(e) { console.error(e); alert("Error al generar captura de pantalla."); } 
+    finally { tableWrap.style.height = oldHeight; tableWrap.style.maxHeight = oldMaxHeight; tableWrap.style.overflow = oldOverflow; document.getElementById("mainTable").style.width = oldW; hiddenRows.forEach(item => item.el.style.display = item.display); colsToHide.forEach((el, i) => el.style.display = originalDisplaysCols[i].disp); extraHides.forEach((el, i) => el.style.display = originalDisplaysExtras[i].disp); }
 };
-
 window.descargarCaptura = function() { if(!currentCaptureBlob) return; let link = document.createElement('a'); link.download = `Estatus_Bitacora.png`; link.href = URL.createObjectURL(currentCaptureBlob); link.click(); };
 window.copiarCaptura = async function() { if(!currentCaptureBlob) return; try { const item = new ClipboardItem({ "image/png": currentCaptureBlob }); await navigator.clipboard.write([item]); alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp."); } catch (err) { alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); } };
 
-function renderChips(containerId, arrayData) {
-    let container = document.getElementById(containerId); container.querySelectorAll('.chip').forEach(e => e.remove()); let inputEl = container.querySelector('input');
-    arrayData.forEach((text, index) => { let chip = document.createElement('div'); chip.className = 'chip'; chip.innerHTML = `${text} <span class="chip-close" onclick="borrarChip(event, '${containerId}', ${index})"><i class="fa-solid fa-xmark"></i></span>`; container.insertBefore(chip, inputEl); });
-}
-window.manejarChipInput = function(e, containerId, arrayData) {
-    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); let val = limpiarStr(e.target.value.replace(/,/g, '')); if (val) { arrayData.push(val); renderChips(containerId, arrayData); } e.target.value = ''; } 
-    else if (e.key === 'Backspace' && e.target.value === '' && arrayData.length > 0) { arrayData.pop(); renderChips(containerId, arrayData); }
-};
-window.borrarChip = function(e, containerId, index) {
-    e.stopPropagation();
-    if(containerId === 'ed_chips_box') { edChipsArray.splice(index, 1); renderChips(containerId, edChipsArray); } 
-    else if(containerId === 'ed_chips_cont_box') { edChipsContArray.splice(index, 1); renderChips(containerId, edChipsContArray); } 
-    else { let filaCont = document.getElementById(containerId); if(filaCont && filaCont.chipData) { filaCont.chipData.splice(index, 1); renderChips(containerId, filaCont.chipData); } }
-};
+window.renderChips = function(containerId, arrayData) { let container = document.getElementById(containerId); container.querySelectorAll('.chip').forEach(e => e.remove()); let inputEl = container.querySelector('input'); arrayData.forEach((text, index) => { let chip = document.createElement('div'); chip.className = 'chip'; chip.innerHTML = `${text} <span class="chip-close" onclick="borrarChip(event, '${containerId}', ${index})"><i class="fa-solid fa-xmark"></i></span>`; container.insertBefore(chip, inputEl); }); };
+window.manejarChipInput = function(e, containerId, arrayData) { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); let val = limpiarStr(e.target.value.replace(/,/g, '')); if (val) { arrayData.push(val); renderChips(containerId, arrayData); } e.target.value = ''; } else if (e.key === 'Backspace' && e.target.value === '' && arrayData.length > 0) { arrayData.pop(); renderChips(containerId, arrayData); } };
+window.borrarChip = function(e, containerId, index) { e.stopPropagation(); if(containerId === 'ed_chips_box') { edChipsArray.splice(index, 1); renderChips(containerId, edChipsArray); } else if(containerId === 'ed_chips_cont_box') { edChipsContArray.splice(index, 1); renderChips(containerId, edChipsContArray); } else { let filaCont = document.getElementById(containerId); if(filaCont && filaCont.chipData) { filaCont.chipData.splice(index, 1); renderChips(containerId, filaCont.chipData); } } };
 window.expandirRuta = function(vId) { let tramo = document.getElementById('exp_ruta_' + vId); if(tramo) { tramo.classList.toggle('expanded'); tramo.classList.toggle('d-none'); } };
 
-// --- DISEÑO HÍBRIDO Y CALENDARIO FLATPICKR ---
-let fpInstance = null;
+// --- CALENDARIO FLATPICKR ---
 window.abrirModalEdicionHora = function(vId, field, titulo, actualTs) {
-    document.getElementById('eh_vId').value = vId; document.getElementById('eh_field').value = field;
-    document.getElementById('eh_txtVacio').value = titulo; document.getElementById('eh_title').innerText = titulo;
-    let defaultD = (actualTs && actualTs !== 'null') ? new Date(Number(actualTs)) : new Date();
-    if(fpInstance) fpInstance.destroy();
-    
-    let modalEl = document.getElementById('modalEditHora');
-    fpInstance = flatpickr("#eh_input", {
-        enableTime: true,
-        dateFormat: "Y-m-d H:i",
-        defaultDate: defaultD,
-        locale: "es",
-        time_24hr: true,
-        minuteIncrement: 1, 
-        allowInput: true,
-        appendTo: modalEl 
-    });
+    document.getElementById('eh_vId').value = vId; document.getElementById('eh_field').value = field; document.getElementById('eh_txtVacio').value = titulo; document.getElementById('eh_title').innerText = titulo;
+    let defaultD = (actualTs && actualTs !== 'null') ? new Date(Number(actualTs)) : new Date(); if(fpInstance) fpInstance.destroy(); let modalEl = document.getElementById('modalEditHora');
+    fpInstance = flatpickr("#eh_input", { enableTime: true, dateFormat: "Y-m-d H:i", defaultDate: defaultD, locale: "es", time_24hr: true, minuteIncrement: 1, allowInput: true, appendTo: modalEl });
     new bootstrap.Modal(modalEl).show();
 };
-
-window.guardarHorarioModal = function() {
-    let vId = document.getElementById('eh_vId').value; let field = document.getElementById('eh_field').value; let titulo = document.getElementById('eh_txtVacio').value;
-    if(!fpInstance || !fpInstance.selectedDates[0]) return mostrarNotificacion("Selecciona una fecha válida.");
-    let d = fpInstance.selectedDates[0].getTime();
-    if(d) { db.ref('viajes_activos/'+vId+'/'+field).set(d); registrarLog(vId, 'Modificó horario de', titulo); mostrarNotificacion("Horario actualizado."); try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){} }
-};
-
-window.borrarHorarioModal = function() {
-    let vId = document.getElementById('eh_vId').value; let field = document.getElementById('eh_field').value; let titulo = document.getElementById('eh_txtVacio').value;
-    if(confirm(`¿Estás seguro de BORRAR el horario de ${titulo}?`)) { db.ref('viajes_activos/'+vId+'/'+field).set(null); registrarLog(vId, 'Eliminó horario', titulo); mostrarNotificacion(`Horario de ${titulo} borrado.`); try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){} }
-};
+window.guardarHorarioModal = function() { let vId = document.getElementById('eh_vId').value; let field = document.getElementById('eh_field').value; let titulo = document.getElementById('eh_txtVacio').value; if(!fpInstance || !fpInstance.selectedDates[0]) return mostrarNotificacion("Selecciona una fecha válida."); let d = fpInstance.selectedDates[0].getTime(); if(d) { db.ref('viajes_activos/'+vId+'/'+field).set(d); registrarLog(vId, 'Modificó horario de', titulo); mostrarNotificacion("Horario actualizado."); try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){} } };
+window.borrarHorarioModal = function() { let vId = document.getElementById('eh_vId').value; let field = document.getElementById('eh_field').value; let titulo = document.getElementById('eh_txtVacio').value; if(confirm(`¿Estás seguro de BORRAR el horario de ${titulo}?`)) { db.ref('viajes_activos/'+vId+'/'+field).set(null); registrarLog(vId, 'Eliminó horario', titulo); mostrarNotificacion(`Horario de ${titulo} borrado.`); try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){} } };
 
 function construirBotonHorario(vId, timestampStr, dbField, textoVacio, claseColor) {
     let ts = getSafeNumber(timestampStr);
-    if(!ts) { 
-        let onClk = `db.ref('viajes_activos/${vId}/${dbField}').set(Date.now()); registrarLog('${vId}', 'Marcó horario de', '${textoVacio}');`;
-        if (dbField === 't_salida') { onClk = `db.ref('viajes_activos/${vId}').update({t_salida: Date.now(), t_salida_origen: (viajesActivos['${vId}'].destino_idx === 0 ? Date.now() : viajesActivos['${vId}'].t_salida_origen)}); registrarLog('${vId}', 'Marcó SALIDA');`; }
-        return `<div class="time-wrapper color-${claseColor}"><button class="time-btn-dashed" onclick="${onClk}">${textoVacio}</button></div>`; 
-    } else { 
-        let displayDate = formatearFechaElegante(ts); let onClk = `abrirModalEdicionHora('${vId}', '${dbField}', '${textoVacio}', '${ts}')`;
-        return `<div class="time-wrapper color-${claseColor}" title="Clic para modificar"><div class="time-capsule cp" onclick="${onClk}"><div class="time-capsule-icon">${textoVacio.charAt(0)}</div><div class="time-capsule-input">${displayDate}</div></div></div>`; 
-    }
+    if(!ts) { let onClk = `db.ref('viajes_activos/${vId}/${dbField}').set(Date.now()); registrarLog('${vId}', 'Marcó horario de', '${textoVacio}');`; if (dbField === 't_salida') { onClk = `db.ref('viajes_activos/${vId}').update({t_salida: Date.now(), t_salida_origen: (viajesActivos['${vId}'].destino_idx === 0 ? Date.now() : viajesActivos['${vId}'].t_salida_origen)}); registrarLog('${vId}', 'Marcó SALIDA');`; } return `<div class="time-wrapper color-${claseColor}"><button class="time-btn-dashed" onclick="${onClk}">${textoVacio}</button></div>`; } 
+    else { let displayDate = formatearFechaElegante(ts); let onClk = `abrirModalEdicionHora('${vId}', '${dbField}', '${textoVacio}', '${ts}')`; return `<div class="time-wrapper color-${claseColor}" title="Clic para modificar"><div class="time-capsule cp" onclick="${onClk}"><div class="time-capsule-icon">${textoVacio.charAt(0)}</div><div class="time-capsule-input">${displayDate}</div></div></div>`; }
 }
 
-window.avanzarMultiDestino = function(vId) {
-    let v = viajesActivos[vId]; if (!v) return;
-    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-    let totalDests = arrDests.length || 1; let currentIdx = v.destino_idx || 0; let now = Date.now();
-    db.ref(`viajes_activos/${vId}/t_fin`).set(now);
-    setTimeout(() => {
-        if (currentIdx < totalDests - 1) {
-            let updates = {}; registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, arrDests[currentIdx]);
-            let tramoRef = `historial_tramos/${currentIdx}`;
-            updates[tramoRef] = { destino: arrDests[currentIdx], t_salida: v.t_salida || null, t_arribo: v.t_arribo || null, t_fin: now };
-            updates['destino_idx'] = currentIdx + 1; updates['origen_actual'] = arrDests[currentIdx]; updates['t_salida'] = now; updates['t_arribo'] = null; updates['t_fin'] = null; updates['is_transit'] = true; 
-            db.ref(`viajes_activos/${vId}`).update(updates);
-        }
-    }, 300);
-};
-
+window.avanzarMultiDestino = function(vId) { let v = viajesActivos[vId]; if (!v) return; let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let totalDests = arrDests.length || 1; let currentIdx = v.destino_idx || 0; let now = Date.now(); db.ref(`viajes_activos/${vId}/t_fin`).set(now); setTimeout(() => { if (currentIdx < totalDests - 1) { let updates = {}; registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, arrDests[currentIdx]); let tramoRef = `historial_tramos/${currentIdx}`; updates[tramoRef] = { destino: arrDests[currentIdx], t_salida: v.t_salida || null, t_arribo: v.t_arribo || null, t_fin: now }; updates['destino_idx'] = currentIdx + 1; updates['origen_actual'] = arrDests[currentIdx]; updates['t_salida'] = now; updates['t_arribo'] = null; updates['t_fin'] = null; updates['is_transit'] = true; db.ref(`viajes_activos/${vId}`).update(updates); } }, 300); };
 window.marcarSalida = function(vId, cIdx) { let updates = { t_salida: Date.now() }; if (cIdx === 0) updates['t_salida_origen'] = Date.now(); db.ref(`viajes_activos/${vId}`).update(updates); registrarLog(vId, 'Marcó SALIDA'); };
 
-// --- FUNCIONES DE NUEVOS VIAJES Y EDICIÓN ---
+// --- NUEVOS VIAJES E INICIO ---
 window.promptNuevoCliente = function() { let n = prompt("Nombre del Nuevo Cliente:"); if(n) { db.ref('clientes').push({nombre: limpiarStr(n), logo: ""}); mostrarNotificacion("Cliente agregado."); } };
 window.promptNuevoSubcliente = function() { let cId = document.getElementById("nv_cliente").value; if(!cId) return alert("Selecciona un cliente."); let n = prompt("Nombre del Nuevo Subcliente:"); if(n) { db.ref(`clientes/${cId}/subclientes`).push({nombre: limpiarStr(n)}); setTimeout(cargarSubclientesNuevoViaje, 600); } };
 window.cargarSubclientesNuevoViaje = function() { let cId = document.getElementById("nv_cliente").value; let selSub = document.getElementById("nv_subcliente"); selSub.innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; if(cId && dataClientes[cId] && dataClientes[cId].subclientes) { selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => `<option value="${k}">${dataClientes[cId].subclientes[k].nombre}</option>`).join(''); } };
+window.prepararNuevoViaje = function() { document.getElementById("nv_cliente").innerHTML = '<option value="">-- SELECCIONE CLIENTE --</option>' + Object.keys(dataClientes).map(k => `<option value="${k}">${dataClientes[k].nombre}</option>`).join(''); document.getElementById("nv_subcliente").innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; document.getElementById("nv_filas_container").innerHTML = ""; document.getElementById("nv_externa").checked = false; agregarFilaNV(); };
 
-window.prepararNuevoViaje = function() { 
-    document.getElementById("nv_cliente").innerHTML = '<option value="">-- SELECCIONE CLIENTE --</option>' + Object.keys(dataClientes).map(k => `<option value="${k}">${dataClientes[k].nombre}</option>`).join('');
-    document.getElementById("nv_subcliente").innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; document.getElementById("nv_filas_container").innerHTML = ""; document.getElementById("nv_externa").checked = false; agregarFilaNV(); 
-};
-
-let filaContador = 0;
 window.agregarFilaNV = function() {
-    filaContador++; let isExterna = document.getElementById("nv_externa").checked; let div = document.createElement("div"); div.className = "bg-white border rounded p-2 mb-2 nv-fila position-relative shadow-sm";
-    let boxId = `nv_chip_box_${filaContador}`; let contBoxId = `cont_${boxId}`;
+    filaContador++; let isExterna = document.getElementById("nv_externa").checked; let div = document.createElement("div"); div.className = "bg-white border rounded p-2 mb-2 nv-fila position-relative shadow-sm"; let boxId = `nv_chip_box_${filaContador}`; let contBoxId = `cont_${boxId}`;
     div.innerHTML = `<button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 px-2 py-0 rounded" onclick="this.parentElement.remove()" title="Quitar Unidad"><i class="fa-solid fa-xmark"></i></button><div class="row gx-2 mt-1 align-items-end"><div class="col-3"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">UNIDAD GPS</label><input type="text" class="form-control form-control-sm border-primary fw-bold text-uppercase nv-unidad" list="listaUnidadesTotales" placeholder="Buscar unidad..." oninput="autofillOp(this)"></div><div class="col-3"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">ORIGEN</label><input type="text" class="form-control form-control-sm text-uppercase nv-origen" list="listaGeocercas" placeholder="Escribir..."></div><div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">DESTINO(S) <span class="fw-normal">(Da Enter)</span></label><div class="chips-container" id="${boxId}" onclick="this.querySelector('input').focus()"><input type="text" list="listaGeocercas" placeholder="Destinos y Enter..." class="nv-destino-input" onkeydown="manejarChipInput(event, '${boxId}', document.getElementById('${boxId}').chipData)"></div></div><div class="col-2"><label style="font-size:0.65rem;" class="fw-bold text-info mb-1"><i class="fa-regular fa-calendar-check"></i> PROG.</label><input type="datetime-local" class="form-control form-control-sm nv-t-programada border-info bg-light" title="Opcional"></div></div><div class="row gx-2 mt-2 align-items-end"><div class="col-6 nv-operador-row" style="display:${isExterna ? 'flex' : 'none'}; gap:10px;"><input type="text" class="form-control form-control-sm text-uppercase nv-operador w-50" list="listaConductores" placeholder="Nombre Operador"><input type="text" class="form-control form-control-sm text-uppercase nv-operador-tel w-50 border-warning" placeholder="Teléfono (Opcional)"></div><div class="col-6 ms-auto"><div class="chips-container" id="${contBoxId}" onclick="this.querySelector('input').focus()"><input type="text" placeholder="CONTENEDORES / CAJAS (Da Enter)..." class="nv-contenedores-input" onkeydown="manejarChipInput(event, '${contBoxId}', document.getElementById('${contBoxId}').chipData)"></div></div></div>`;
     document.getElementById("nv_filas_container").appendChild(div); document.getElementById(boxId).chipData = []; document.getElementById(contBoxId).chipData = [];
 };
@@ -509,86 +296,41 @@ window.autofillOp = function(inputEl) { let uN = limpiarStr(inputEl.value); let 
 
 window.registrarViajesMultiples = function() {
     let cId = document.getElementById("nv_cliente").value; let sId = document.getElementById("nv_subcliente").value || "N/A";
-    if(!cId) return alert("Debes seleccionar un Cliente de la lista.");
-    let isExterna = document.getElementById("nv_externa").checked; let filas = document.querySelectorAll(".nv-fila");
-    if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
-    
+    if(!cId) return alert("Debes seleccionar un Cliente de la lista."); let isExterna = document.getElementById("nv_externa").checked; let filas = document.querySelectorAll(".nv-fila"); if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
     let batchPromises = []; let errorFound = false;
     filas.forEach(fila => {
         if(errorFound) return;
-        let uInput = limpiarStr(fila.querySelector(".nv-unidad").value); 
-        let opInputRaw = fila.querySelector(".nv-operador") ? limpiarStr(fila.querySelector(".nv-operador").value) : "";
-        let opTelRaw = fila.querySelector(".nv-operador-tel") ? limpiarStr(fila.querySelector(".nv-operador-tel").value) : "";
-        let origen = limpiarStr(fila.querySelector(".nv-origen").value);
-        let opInput = isExterna && opTelRaw ? `${opInputRaw} - TEL: ${opTelRaw}` : opInputRaw;
-        let destBoxId = fila.querySelectorAll('.chips-container')[0].id; let contBoxId = fila.querySelectorAll('.chips-container')[1].id;
-        let destArr = document.getElementById(destBoxId).chipData || []; let contArr = document.getElementById(contBoxId).chipData || [];
-        let tProgRaw = fila.querySelector(".nv-t-programada").value; let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
-        
+        let uInput = limpiarStr(fila.querySelector(".nv-unidad").value); let opInputRaw = fila.querySelector(".nv-operador") ? limpiarStr(fila.querySelector(".nv-operador").value) : ""; let opTelRaw = fila.querySelector(".nv-operador-tel") ? limpiarStr(fila.querySelector(".nv-operador-tel").value) : ""; let origen = limpiarStr(fila.querySelector(".nv-origen").value); let opInput = isExterna && opTelRaw ? `${opInputRaw} - TEL: ${opTelRaw}` : opInputRaw;
+        let destBoxId = fila.querySelectorAll('.chips-container')[0].id; let contBoxId = fila.querySelectorAll('.chips-container')[1].id; let destArr = document.getElementById(destBoxId).chipData || []; let contArr = document.getElementById(contBoxId).chipData || []; let tProgRaw = fila.querySelector(".nv-t-programada").value; let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
         if(destArr.length === 0) { alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); errorFound = true; return; }
         if(!uInput) { alert("El nombre de la unidad no puede estar vacío"); errorFound = true; return; }
-        
         let wId = "EXTERNO";
-        if (!isExterna) { 
-            let nNorm = uInput.replace(/[\s\-]/g, ""); let foundWialon = false;
-            for(let k in unidadesGlobales){ if(limpiarStr(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { wId = k; uInput = unidadesGlobales[k].name; foundWialon = true; break; } } 
-            if(!foundWialon) { alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); errorFound = true; return; }
-        }
-        
+        if (!isExterna) { let nNorm = uInput.replace(/[\s\-]/g, ""); let foundWialon = false; for(let k in unidadesGlobales){ if(limpiarStr(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { wId = k; uInput = unidadesGlobales[k].name; foundWialon = true; break; } } if(!foundWialon) { alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); errorFound = true; return; } }
         let refPush = db.ref('viajes_activos').push();
-        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destinos: destArr, destino_idx: 0, estatus: "s1", operador: opInput, contenedores_arr: contArr, t_programada: tProgTs, unidadFallback: uInput, unidadN: uInput }).then(() => {
-            registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS");
-            if(tProgTs) registrarLog(refPush.key, "Hora de Salida Programada", tProgRaw.replace('T', ' '));
-            if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { vincularChoferEnWialon(wId, opInputRaw); }
-        }); batchPromises.push(p);
+        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destinos: destArr, destino_idx: 0, estatus: "s1", operador: opInput, contenedores_arr: contArr, t_programada: tProgTs, unidadFallback: uInput, unidadN: uInput }).then(() => { registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS"); if(tProgTs) registrarLog(refPush.key, "Hora de Salida Programada", tProgRaw.replace('T', ' ')); if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { vincularChoferEnWialon(wId, opInputRaw); } }); batchPromises.push(p);
     });
     if(errorFound) return; Promise.all(batchPromises).then(() => { mostrarNotificacion("¡Viajes registrados con éxito!"); try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){} });
 };
 
 window.cargarSubclientesEdicion = function() { let cId = document.getElementById("ed_cliente").value; let selSub = document.getElementById("ed_subcliente"); selSub.innerHTML = '<option value="N/A">-- SIN SUBCLIENTE --</option>'; if(cId && dataClientes[cId] && dataClientes[cId].subclientes) { selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => `<option value="${k}">${dataClientes[cId].subclientes[k].nombre}</option>`).join(''); } };
-
 window.abrirEdicionViaje = function(uId, uName) { 
-    let v = viajesActivos[uId]; if(!v) return; 
-    document.getElementById("edU_id").value = uId; document.getElementById("edU_name").innerText = uName; 
-    document.getElementById("ed_origen").value = v.origen || ""; document.getElementById("ed_t_programada").value = v.t_programada ? getLocalISO(v.t_programada) : "";
-    let isExt = (v.wialonId === "EXTERNO");
-    document.getElementById("ed_operador_wialon_wrapper").style.display = isExt ? 'none' : 'block';
-    document.getElementById("ed_operador_manual_wrapper").style.display = isExt ? 'block' : 'none';
-    let opSelect = document.getElementById("ed_operador_wialon"); opSelect.innerHTML = `<option value="">-- SELECCIONAR DE WIALON --</option>`;
-    let wialonSet = new Set();
-    Object.values(diccChoferesGlobal).forEach(chofer => {
-        let opName = limpiarStr(chofer.nombre);
-        if(opName && opName !== "SIN ASIGNAR" && !wialonSet.has(opName)) { wialonSet.add(opName); let combinedText = chofer.tel ? `${opName} - TEL: ${chofer.tel}` : opName; let isSel = (limpiarStr(v.operador) === opName) ? 'selected' : ''; opSelect.innerHTML += `<option value="${opName}" ${isSel}>${combinedText}</option>`; }
-    });
-    document.getElementById("ed_operador").value = isExt ? (v.operador || "") : ""; 
-    let selCli = document.getElementById("ed_cliente"); selCli.innerHTML = '<option value="Sin_Cliente">-- SELECCIONE CLIENTE --</option>' + Object.keys(dataClientes).map(k => `<option value="${k}" ${v.cliente === k ? 'selected':''}>${dataClientes[k].nombre}</option>`).join('');
-    cargarSubclientesEdicion(); document.getElementById("ed_subcliente").value = v.subcliente || "N/A";
-    edChipsArray = Array.isArray(v.destinos) ? [...v.destinos] : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); renderChips('ed_chips_box', edChipsArray);
-    edChipsContArray = Array.isArray(v.contenedores_arr) ? [...v.contenedores_arr] : (v.contenedores ? [v.contenedores] : []); renderChips('ed_chips_cont_box', edChipsContArray);
-    new bootstrap.Modal(document.getElementById('modalEditarViaje')).show(); 
+    let v = viajesActivos[uId]; if(!v) return; document.getElementById("edU_id").value = uId; document.getElementById("edU_name").innerText = uName; document.getElementById("ed_origen").value = v.origen || ""; document.getElementById("ed_t_programada").value = v.t_programada ? getLocalISO(v.t_programada) : "";
+    let isExt = (v.wialonId === "EXTERNO"); document.getElementById("ed_operador_wialon_wrapper").style.display = isExt ? 'none' : 'block'; document.getElementById("ed_operador_manual_wrapper").style.display = isExt ? 'block' : 'none'; let opSelect = document.getElementById("ed_operador_wialon"); opSelect.innerHTML = `<option value="">-- SELECCIONAR DE WIALON --</option>`; let wialonSet = new Set();
+    Object.values(diccChoferesGlobal).forEach(chofer => { let opName = limpiarStr(chofer.nombre); if(opName && opName !== "SIN ASIGNAR" && !wialonSet.has(opName)) { wialonSet.add(opName); let combinedText = chofer.tel ? `${opName} - TEL: ${chofer.tel}` : opName; let isSel = (limpiarStr(v.operador) === opName) ? 'selected' : ''; opSelect.innerHTML += `<option value="${opName}" ${isSel}>${combinedText}</option>`; } });
+    document.getElementById("ed_operador").value = isExt ? (v.operador || "") : ""; let selCli = document.getElementById("ed_cliente"); selCli.innerHTML = '<option value="Sin_Cliente">-- SELECCIONE CLIENTE --</option>' + Object.keys(dataClientes).map(k => `<option value="${k}" ${v.cliente === k ? 'selected':''}>${dataClientes[k].nombre}</option>`).join(''); cargarSubclientesEdicion(); document.getElementById("ed_subcliente").value = v.subcliente || "N/A";
+    edChipsArray = Array.isArray(v.destinos) ? [...v.destinos] : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); renderChips('ed_chips_box', edChipsArray); edChipsContArray = Array.isArray(v.contenedores_arr) ? [...v.contenedores_arr] : (v.contenedores ? [v.contenedores] : []); renderChips('ed_chips_cont_box', edChipsContArray); new bootstrap.Modal(document.getElementById('modalEditarViaje')).show(); 
 };
-
 window.guardarEdicionViaje = function() { 
-    let uId = document.getElementById("edU_id").value; let v = viajesActivos[uId]; if(!v) return;
-    let tProgRaw = document.getElementById("ed_t_programada").value; let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
-    let isExt = (v.wialonId === "EXTERNO"); let opWialon = document.getElementById("ed_operador_wialon").value; let opManual = document.getElementById("ed_operador").value; let finalOp = isExt ? limpiarStr(opManual) : limpiarStr(opWialon);
-    let cId = document.getElementById("ed_cliente").value; let sId = document.getElementById("ed_subcliente").value;
-    registrarLog(uId, "Editó Datos", "Configuración de Viaje"); 
-    db.ref('viajes_activos/' + uId).update({ cliente: cId, subcliente: sId, origen: limpiarStr(document.getElementById("ed_origen").value), destinos: edChipsArray, contenedores_arr: edChipsContArray, operador: finalOp, t_programada: tProgTs }).then(() => { mostrarNotificacion("Cambios guardados."); if (!isExt && opWialon) vincularChoferEnWialon(v.wialonId, finalOp); try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} }); 
+    let uId = document.getElementById("edU_id").value; let v = viajesActivos[uId]; if(!v) return; let tProgRaw = document.getElementById("ed_t_programada").value; let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null; let isExt = (v.wialonId === "EXTERNO"); let opWialon = document.getElementById("ed_operador_wialon").value; let opManual = document.getElementById("ed_operador").value; let finalOp = isExt ? limpiarStr(opManual) : limpiarStr(opWialon); let cId = document.getElementById("ed_cliente").value; let sId = document.getElementById("ed_subcliente").value;
+    registrarLog(uId, "Editó Datos", "Configuración de Viaje"); db.ref('viajes_activos/' + uId).update({ cliente: cId, subcliente: sId, origen: limpiarStr(document.getElementById("ed_origen").value), destinos: edChipsArray, contenedores_arr: edChipsContArray, operador: finalOp, t_programada: tProgTs }).then(() => { mostrarNotificacion("Cambios guardados."); if (!isExt && opWialon) vincularChoferEnWialon(v.wialonId, finalOp); try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} }); 
 };
 
-// --- EL RENDERIZADO MAESTRO ---
+// --- RENDERIZADO MAESTRO DE TABLA ---
 function renderizarBitacora() {
     if (UI_PAUSED) return; 
     const tbody = document.getElementById('units-body'); let html = ""; let tree = { "Sin_Cliente": { "N/A": [] } };
-    
     Object.keys(dataClientes).forEach(cId => { tree[cId] = { "N/A": [] }; if(dataClientes[cId].subclientes) { Object.keys(dataClientes[cId].subclientes).forEach(sId => tree[cId][sId] = []); } });
-    Object.keys(viajesActivos).forEach(vId => { 
-        let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; 
-        let cId = String(v.cliente || "Sin_Cliente"); let sId = String(v.subcliente || "N/A"); 
-        if(!tree[cId]) tree[cId] = { "N/A": [] }; if(!tree[cId][sId]) tree[cId][sId] = []; 
-        tree[cId][sId].push({vId, v}); 
-    });
+    Object.keys(viajesActivos).forEach(vId => { let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; let cId = String(v.cliente || "Sin_Cliente"); let sId = String(v.subcliente || "N/A"); if(!tree[cId]) tree[cId] = { "N/A": [] }; if(!tree[cId][sId]) tree[cId][sId] = []; tree[cId][sId].push({vId, v}); });
     datosAgrupadosGlobal = tree; 
 
     for(let cId in tree) {
@@ -596,104 +338,74 @@ function renderizarBitacora() {
         let hasClientUnits = false; for(let sId in tree[cId]) { if(tree[cId][sId].length > 0) { hasClientUnits = true; break; } }
         if(!hasClientUnits) continue;
 
-        let logoHtml = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo" title="${cliName}">` : ``;
-        let clientActions = cId !== "Sin_Cliente" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-white" type="button" data-bs-toggle="dropdown" data-bs-boundary="window" title="Acciones de Cliente"><i class="fa-solid fa-ellipsis-vertical fs-5"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom"><li><a class="dropdown-item dropdown-item-custom fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${cliName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura Estatus</a></li><li><a class="dropdown-item dropdown-item-custom fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', 'N/A', '${cliName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte WhatsApp</a></li></ul></div>` : '';
-        let clientTitleHtml = `<div class="d-flex align-items-center justify-content-center w-100 position-relative"><img src="TIGPS HD2.png" class="grudicom-logo-header" title="Grudicom TI & GPS" onerror="this.style.display='none'">${logoHtml}<span class="align-middle text-uppercase fw-bold ms-2" style="font-size: 1.3rem; letter-spacing: 0.5px;">${cliName}</span>${clientActions}</div>`;
+        let safeCliName = escapeSafe(cliName);
+        let logoHtml = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo" title="${safeCliName}">` : ``;
+        let clientActions = cId !== "Sin_Cliente" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-white" type="button" data-bs-toggle="dropdown" title="Acciones de Cliente"><i class="fa-solid fa-ellipsis-vertical fs-5"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3"><li><a class="dropdown-item fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${safeCliName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura Estatus</a></li><li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', 'N/A', '${safeCliName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte WhatsApp</a></li></ul></div>` : '';
+        let clientTitleHtml = `<div class="d-flex align-items-center justify-content-center w-100 position-relative"><img src="TIGPS HD2.png" class="grudicom-logo-header" title="Grudicom TI & GPS" onerror="this.style.display='none'">${logoHtml}<span class="align-middle text-uppercase fw-bold ms-2" style="font-size: 1.3rem; letter-spacing: 0.5px;">${safeCliName}</span>${clientActions}</div>`;
         html += `<tr class="header-cliente shadow-sm client-group-${cId}" data-client="${cId}"><td colspan="${colOrder.length}">${clientTitleHtml}</td></tr>`;
 
         for(let sId in tree[cId]) {
             if(tree[cId][sId].length === 0) continue;
             let subName = ""; if (sId !== "N/A" && dataClientes[cId] && dataClientes[cId].subclientes && dataClientes[cId].subclientes[sId]) { subName = dataClientes[cId].subclientes[sId].nombre || ""; }
-            let logoHtmlSub = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo-sub" title="${cliName}">` : '';
-            let subclientActions = sId !== "N/A" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-dark" type="button" data-bs-toggle="dropdown" data-bs-boundary="window"><i class="fa-solid fa-ellipsis-vertical fs-6"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom"><li><a class="dropdown-item dropdown-item-custom fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', '${sId}', '${cliName} -> ${subName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte Subcliente</a></li><li><a class="dropdown-item dropdown-item-custom fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${subName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura de Subcliente</a></li></ul></div>` : '';
-            if(sId !== "N/A" && subName !== "") { html += `<tr class="header-subcliente client-group-${cId}"><td colspan="${colOrder.length}"><div class="d-flex justify-content-center align-items-center position-relative w-100"><div class="d-flex align-items-center text-uppercase">↳ ${logoHtmlSub} SUBCLIENTE: ${subName}</div>${subclientActions}</div></td></tr>`; }
+            let safeSubName = escapeSafe(subName);
+            let logoHtmlSub = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo-sub" title="${safeCliName}">` : '';
+            let subclientActions = sId !== "N/A" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-dark" type="button" data-bs-toggle="dropdown"><i class="fa-solid fa-ellipsis-vertical fs-6"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3"><li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', '${sId}', '${safeCliName} -> ${safeSubName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte Subcliente</a></li><li><a class="dropdown-item fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${safeSubName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura de Subcliente</a></li></ul></div>` : '';
+            if(sId !== "N/A" && subName !== "") { html += `<tr class="header-subcliente client-group-${cId}"><td colspan="${colOrder.length}"><div class="d-flex justify-content-center align-items-center position-relative w-100"><div class="d-flex align-items-center text-uppercase">↳ ${logoHtmlSub} SUBCLIENTE: ${safeSubName}</div>${subclientActions}</div></td></tr>`; }
             html += getHeadersRow(cId);
 
-            tree[cId][sId].sort((a, b) => { 
-                let valA = "", valB = "";
-                if (sortState.column === 'unidad') { valA = String(a.v.unidadN || a.v.unidadFallback || ""); valB = String(b.v.unidadN || b.v.unidadFallback || ""); } 
-                else if (sortState.column === 'ruta') { valA = String(a.v.origen || ""); valB = String(b.v.origen || ""); } 
-                else if (sortState.column === 'estatus') { valA = String(a.v.estatus || ""); valB = String(b.v.estatus || ""); } 
-                else { valA = String(a.v.estatus || ""); valB = String(b.v.estatus || ""); }
-                let cmp = valA.localeCompare(valB); return sortState.direction === 'asc' ? cmp : -cmp;
-            });
+            tree[cId][sId].sort((a, b) => { let valA = "", valB = ""; if (sortState.column === 'unidad') { valA = String(a.v.unidadN || a.v.unidadFallback || ""); valB = String(b.v.unidadN || b.v.unidadFallback || ""); } else if (sortState.column === 'ruta') { valA = String(a.v.origen || ""); valB = String(b.v.origen || ""); } else if (sortState.column === 'estatus') { valA = String(a.v.estatus || ""); valB = String(b.v.estatus || ""); } else { valA = String(a.v.estatus || ""); valB = String(b.v.estatus || ""); } return sortState.direction === 'asc' ? valA.localeCompare(valB) : -valA.localeCompare(valB); });
 
             tree[cId][sId].forEach(({vId, v}) => {
                 try {
-                    let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback); let isExternal = v.wialonId === "EXTERNO"; let colEstatus = window.estatusData[v.estatus]?.col || '#0f172a';
+                    let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback); let safeCamionName = escapeSafe(nombreCamion); let isExternal = v.wialonId === "EXTERNO"; let colEstatus = window.estatusData[v.estatus]?.col || '#0f172a';
                     let logsObj = v.log || {}; let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t);
-                    let lastLog = logsArr.length > 0 ? `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center"><div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${nombreCamion}')"></i></div><div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;"><b class="text-primary">${String(logsArr[0].usr)}:</b> <span class="text-dark fw-bold">${String(logsArr[0].act)}</span><div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${String(logsArr[0].det||'')}">${String(logsArr[0].det||'')}</div></div></div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
+                    let lastLog = logsArr.length > 0 ? `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center"><div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${safeCamionName}')"></i></div><div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;"><b class="text-primary">${escapeSafe(String(logsArr[0].usr))}:</b> <span class="text-dark fw-bold">${escapeSafe(String(logsArr[0].act))}</span><div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${escapeSafe(String(logsArr[0].det||''))}">${escapeSafe(String(logsArr[0].det||''))}</div></div></div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
                     let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
-                    let optionsHtml = `<div class="dropdown w-100"><button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" data-bs-boundary="window" aria-expanded="false">${curEst.nombre}</button><ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom" style="font-size:0.75rem; max-height:250px; overflow-y:auto;">${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item dropdown-item-custom cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}</ul></div>`;
+                    let optionsHtml = `<div class="dropdown w-100"><button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown">${curEst.nombre}</button><ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom" style="font-size:0.75rem; max-height:250px; overflow-y:auto;">${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item dropdown-item-custom cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}</ul></div>`;
 
-                    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-                    let totDests = arrDests.length || 1; let cIdx = v.destino_idx || 0; let isLastDest = (cIdx >= totDests - 1); let isTripFullyFinished = (isLastDest && v.t_fin);
-                    let cOrigen = v.origen_actual || v.origen || ""; let cDestino = arrDests[cIdx] || v.destino || "";
-                    if (isTripFullyFinished) { cOrigen = v.origen || ""; cDestino = arrDests[totDests - 1] || v.destino || ""; }
+                    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let totDests = arrDests.length || 1; let cIdx = v.destino_idx || 0; let isLastDest = (cIdx >= totDests - 1); let isTripFullyFinished = (isLastDest && v.t_fin);
+                    let cOrigen = v.origen_actual || v.origen || ""; let cDestino = arrDests[cIdx] || v.destino || ""; if (isTripFullyFinished) { cOrigen = v.origen || ""; cDestino = arrDests[totDests - 1] || v.destino || ""; }
 
                     let semaforoHtml = '';
                     if(v.t_programada) {
                         let pNum = getSafeNumber(v.t_programada);
                         if(pNum) {
-                            let pTime = new Date(pNum); let timeStr = pTime.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
-                            let msRef = getSafeNumber(v.t_salida) || Date.now(); let diffMins = Math.floor((msRef - pNum) / 60000); let diffStr = formatTimeDiff(diffMins);
-                            let sClass = "verde"; let sText = ""; if (diffMins > 20) { sClass = "rojo"; sText = `Retraso: ${diffStr}`; } else if (diffMins > 0) { sClass = "amarillo"; sText = `Retraso: ${diffStr}`; } else { sText = (!v.t_salida) ? `Faltan: ${diffStr}` : `Adelanto: ${diffStr}`; }
+                            let pTime = new Date(pNum); let timeStr = pTime.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'}); let msRef = getSafeNumber(v.t_salida) || Date.now(); let diffMins = Math.floor((msRef - pNum) / 60000); let diffStr = formatTimeDiff(diffMins); let sClass = "verde"; let sText = ""; if (diffMins > 20) { sClass = "rojo"; sText = `Retraso: ${diffStr}`; } else if (diffMins > 0) { sClass = "amarillo"; sText = `Retraso: ${diffStr}`; } else { sText = (!v.t_salida) ? `Faltan: ${diffStr}` : `Adelanto: ${diffStr}`; }
                             semaforoHtml = `<span class="semaforo-minimalista ${sClass}" title="Día Prog: ${pTime.toLocaleDateString('es-MX')}"><i class="fa-regular fa-clock me-1"></i>Prog: ${timeStr} (${sText})</span>`;
                         }
                     }
 
-                    let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
-                    if(isTripFullyFinished && totDests > 1) { notaDests = `<div style="font-size:0.65rem; color:#10b981; font-weight:900; margin-top:4px;"><i class="fa-solid fa-flag-checkered"></i> Ruta Completa</div>`; }
-
+                    let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : ''; if(isTripFullyFinished && totDests > 1) { notaDests = `<div style="font-size:0.65rem; color:#10b981; font-weight:900; margin-top:4px;"><i class="fa-solid fa-flag-checkered"></i> Ruta Completa</div>`; }
                     let tramosHtml = '';
                     if (totDests > 1) {
                         tramosHtml = `<div id="exp_ruta_${vId}" class="d-none tramo-historial w-100 text-start mt-2 p-2 bg-light rounded border shadow-sm" style="font-size:0.65rem;"><div class="fw-bold text-primary mb-1 border-bottom border-secondary pb-1">HISTORIAL DE RUTA</div>`;
-                        arrDests.forEach((d, i) => {
-                            let hist = (v.historial_tramos && v.historial_tramos[i]) ? v.historial_tramos[i] : null;
-                            let arrTime = (i === cIdx && v.t_arribo) ? formatTimeFriendly(v.t_arribo) : (hist && hist.t_arribo ? formatTimeFriendly(hist.t_arribo) : '--:--');
-                            let finTime = (i === cIdx && v.t_fin) ? formatTimeFriendly(v.t_fin) : (hist && hist.t_fin ? formatTimeFriendly(hist.t_fin) : '--:--');
-                            let actClass = (i === cIdx) ? 'bg-white border-primary border text-primary fw-bold p-1 rounded my-1 shadow-sm' : 'text-muted mb-1';
-                            let indicator = (i === cIdx) ? '<i class="fa-solid fa-truck-fast me-1"></i> ' : '<i class="fa-solid fa-check text-success me-1"></i> ';
-                            if(i > cIdx) { indicator = '<i class="fa-regular fa-clock me-1"></i> '; arrTime = 'Pendiente'; finTime = ''; }
-                            tramosHtml += `<div class="${actClass}">${indicator} ${i+1}. ${d} <br> <span style="font-size:0.6rem; color:#64748b;">Arr: ${arrTime} ${finTime ? '| Fin: '+finTime : ''}</span></div>`;
-                        }); tramosHtml += `</div>`;
+                        arrDests.forEach((d, i) => { let hist = (v.historial_tramos && v.historial_tramos[i]) ? v.historial_tramos[i] : null; let arrTime = (i === cIdx && v.t_arribo) ? formatTimeFriendly(v.t_arribo) : (hist && hist.t_arribo ? formatTimeFriendly(hist.t_arribo) : '--:--'); let finTime = (i === cIdx && v.t_fin) ? formatTimeFriendly(v.t_fin) : (hist && hist.t_fin ? formatTimeFriendly(hist.t_fin) : '--:--'); let actClass = (i === cIdx) ? 'bg-white border-primary border text-primary fw-bold p-1 rounded my-1 shadow-sm' : 'text-muted mb-1'; let indicator = (i === cIdx) ? '<i class="fa-solid fa-truck-fast me-1"></i> ' : '<i class="fa-solid fa-check text-success me-1"></i> '; if(i > cIdx) { indicator = '<i class="fa-regular fa-clock me-1"></i> '; arrTime = 'Pendiente'; finTime = ''; } tramosHtml += `<div class="${actClass}">${indicator} ${i+1}. ${escapeSafe(d)} <br> <span style="font-size:0.6rem; color:#64748b;">Arr: ${arrTime} ${finTime ? '| Fin: '+finTime : ''}</span></div>`; }); tramosHtml += `</div>`;
                     }
 
-                    let overrideFin = null; if (!isLastDest && !v.t_fin) overrideFin = `avanzarMultiDestino('${vId}')`;
                     let isTransit = v.is_transit && cIdx > 0; let timestampSalidaVisual = (isLastDest && v.t_salida_origen && cIdx > 0) ? v.t_salida_origen : v.t_salida;
-                    
-                    let btnSalida = construirBotonHorario(vId, timestampSalidaVisual, 't_salida', 'SALIDA', 'success');
-                    let btnArribo = v.t_salida ? construirBotonHorario(vId, v.t_arribo, 't_arribo', 'ARRIBO', 'primary') : '';
-                    let btnFin = v.t_arribo ? construirBotonHorario(vId, v.t_fin, 't_fin', 'FINALIZADO', 'dark') : '';
+                    let btnSalida = construirBotonHorario(vId, timestampSalidaVisual, 't_salida', 'SALIDA', 'success'); let btnArribo = v.t_salida ? construirBotonHorario(vId, v.t_arribo, 't_arribo', 'ARRIBO', 'primary') : ''; let btnFin = v.t_arribo ? construirBotonHorario(vId, v.t_fin, 't_fin', 'FINALIZADO', 'dark') : '';
+                    let mapClick = `clickMapaUnidad('${vId}')`; let tds = {}; let contArr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr : (v.contenedores ? [v.contenedores] : []); let htmlContenedores = contArr.map(c => `<div class="contenedor-capsula"><i class="fa-solid fa-trailer me-2 text-primary" style="font-size:0.9rem;"></i>${escapeSafe(c)}</div>`).join('');
 
-                    let mapClick = `clickMapaUnidad('${vId}')`; let tds = {};
-                    let contArr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr : (v.contenedores ? [v.contenedores] : []);
-                    let htmlContenedores = contArr.map(c => `<div class="contenedor-capsula"><i class="fa-solid fa-trailer me-2 text-primary" style="font-size:0.9rem;"></i>${c}</div>`).join('');
-
-                    tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${nombreCamion}</span><div class="w-100 d-flex flex-column align-items-center">${htmlContenedores}</div></div></td>`;
+                    tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${safeCamionName}</span><div class="w-100 d-flex flex-column align-items-center">${htmlContenedores}</div></div></td>`;
                     tds['col-operador'] = `<td class="col-operador align-middle ${hiddenCols['col-operador'] ? 'd-none' : ''}"><div id="op_wialon_${vId}"><span class="badge bg-secondary w-100 mt-1" style="font-size:0.6rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</span></div></td>`;
-                    tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje'"><div class="route-text">${cOrigen}</div><i class="fa-solid fa-caret-down my-1 text-muted" style="font-size:0.8rem;"></i><div class="route-text">${cDestino}</div>${semaforoHtml}${notaDests}${totDests > 1 ? `<button class="btn btn-sm text-primary p-0 mt-2 shadow-sm rounded-circle bg-white" style="width:24px; height:24px; line-height:12px;" onclick="expandirRuta('${vId}')"><i class="fa-solid fa-list" style="font-size:0.7rem;"></i></button>` : ''}${tramosHtml}</div></td>`;
+                    tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje'"><div class="route-text">${escapeSafe(cOrigen)}</div><i class="fa-solid fa-caret-down my-1 text-muted" style="font-size:0.8rem;"></i><div class="route-text">${escapeSafe(cDestino)}</div>${semaforoHtml}${notaDests}${totDests > 1 ? `<button class="btn btn-sm text-primary p-0 mt-2 shadow-sm rounded-circle bg-white" style="width:24px; height:24px; line-height:12px;" onclick="expandirRuta('${vId}')"><i class="fa-solid fa-list" style="font-size:0.7rem;"></i></button>` : ''}${tramosHtml}</div></td>`;
                     tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${btnSalida}${btnArribo}${btnFin}</div></td>`;
                     tds['col-estatus'] = `<td class="col-estatus align-middle ${hiddenCols['col-estatus'] ? 'd-none' : ''}" style="overflow: visible !important;">${optionsHtml}</td>`;
                     tds['col-gps'] = `<td class="col-gps align-middle ${hiddenCols['col-gps'] ? 'd-none' : ''}" id="gps_cell_${vId}"><div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><span id="icon_${vId}"><i class="fa-solid fa-spinner fa-spin text-muted me-1 fs-6"></i></span><span id="speed_${vId}"><span class="speed-badge bg-secondary m-0">-- km/h</span></span></div><div id="time_${vId}" style="font-size:0.65rem; color:#64748b; font-weight:800;">--</div></div><div class="w-100 text-center" id="addr_control_${vId}"><div style="font-size:0.75rem; color:#64748b; font-weight:800;">Sincronizando...</div></div></div></td>`;
-                    tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+v.alerta.txt+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
+                    tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+escapeSafe(v.alerta.txt)+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
                     tds['col-historial'] = `<td class="col-historial align-middle ${hiddenCols['col-historial'] ? 'd-none' : ''}">${lastLog}</td>`;
-                    
-                    // BOTÓN DE ACCIONES BLINDADO CON DATA-BS-BOUNDARY="WINDOW" PARA QUE NO BRINQUE NI SE CORTE
-                    tds['col-accion'] = `<td class="col-accion align-middle ${hiddenCols['col-accion'] ? 'd-none' : ''}" style="overflow: visible !important;"><div class="d-flex align-items-center justify-content-center h-100"><div class="dropdown"><button class="btn-dots cp bg-transparent border-0" type="button" data-bs-toggle="dropdown" data-bs-boundary="window" title="Más Opciones"><i class="fa-solid fa-ellipsis-vertical fs-5 text-muted"></i></button><ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 dropdown-menu-custom"><li><a class="dropdown-item dropdown-item-custom text-success cp" onclick="enviarWA('${vId}')"><i class="fa-brands fa-whatsapp me-2 fs-5 align-middle"></i> Enviar WhatsApp</a></li><li><a class="dropdown-item dropdown-item-custom text-primary cp" onclick="abrirEdicionViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-pencil me-2 fs-5 align-middle"></i> Editar Viaje</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item dropdown-item-custom text-danger cp" onclick="finalizarViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-trash me-2 fs-5 align-middle"></i> Archivar Viaje</a></li></ul></div></div></td>`;
+                    tds['col-accion'] = `<td class="col-accion align-middle ${hiddenCols['col-accion'] ? 'd-none' : ''}" style="overflow: visible !important;"><div class="d-flex align-items-center justify-content-center h-100"><div class="dropdown"><button class="btn-dots cp bg-transparent border-0" type="button" data-bs-toggle="dropdown" title="Más Opciones"><i class="fa-solid fa-ellipsis-vertical fs-5 text-muted"></i></button><ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 dropdown-menu-custom"><li><a class="dropdown-item dropdown-item-custom text-success cp" onclick="enviarWA('${vId}')"><i class="fa-brands fa-whatsapp me-2 fs-5 align-middle"></i> Enviar WhatsApp</a></li><li><a class="dropdown-item dropdown-item-custom text-primary cp" onclick="abrirEdicionViaje('${vId}', '${safeCamionName}')"><i class="fa-solid fa-pencil me-2 fs-5 align-middle"></i> Editar Viaje</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item dropdown-item-custom text-danger cp" onclick="finalizarViaje('${vId}', '${safeCamionName}')"><i class="fa-solid fa-trash me-2 fs-5 align-middle"></i> Archivar Viaje</a></li></ul></div></div></td>`;
 
                     let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {};
                     let trInner = colOrder.map(c => { let ancho = savedWidths[c] || columnasDef[c].ancho; return tds[c].replace('class="', `style="width:${ancho}px; min-width:${ancho}px; max-width:${ancho}px;" class="`); }).join('');
                     let searchData = `${nombreCamion} ${v.origen||''} ${v.destino||''} ${contArr.join(' ')} ${v.operador||''} ${cliName} ${subName} ${window.estatusData[v.estatus]?.nombre||''}`.toLowerCase();
                     let classAlerts = isExternal ? 'external-connection-row ' : 'needs-gps-update ';
-                    
-                    html += `<tr class="data-row client-group-${cId} ${classAlerts}" id="row_${vId}" data-search="${searchData}" style="--row-bg: ${hexToRgba(colEstatus, 0.08)};">${trInner}</tr>`;
+                    html += `<tr class="data-row client-group-${cId} ${classAlerts}" id="row_${vId}" data-search="${escapeSafe(searchData)}" style="--row-bg: ${hexToRgba(colEstatus, 0.08)};">${trInner}</tr>`;
 
                 } catch(err) { console.error("Fila omitida por error:", vId, err); }
             });
         }
     }
-    
     tbody.innerHTML = html || `<tr><td colspan="${colOrder.length}" class="p-5 text-muted fs-6 text-center"><i class="fa-solid fa-folder-open mb-2 fs-3 text-primary"></i><br>Aún no hay viajes activos en la bitácora.</td></tr>`;
     filtrarTablaInteligente(); 
 }
@@ -711,7 +423,6 @@ function filtrarTablaInteligente() {
     }
 }
 
-// --- GPS Y WIALON CORE ---
 function inyectarGPSenTabla() { 
     Object.keys(viajesActivos).forEach(vId => { 
         try { 
@@ -719,112 +430,73 @@ function inyectarGPSenTabla() {
             let uData = encontrarUnidad(v, vId); let isExternal = v.wialonId === "EXTERNO"; 
             let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0; let isLost = !uData || (uData && !pos && !isExternal); 
             let ageSecs = pos ? Math.floor(Date.now()/1000) - pos.t : 0; let isStale = ageSecs > 600; 
+            let safeName = uData ? escapeSafe(uData.name) : "Desconocida";
             
             let row = document.getElementById("row_" + vId); 
             if(row) { row.classList.remove("lost-connection-row", "stale-row"); if(isLost && !isExternal) row.classList.add("lost-connection-row"); else if (isStale && !isExternal) row.classList.add("lost-connection-row"); } 
             
-            if (isStale && !isExternal && !v.alerta_desconexion) { db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true); enviarNotificacionPersistente(vId, uData.name, 'DESCONEXION', 'Perdió señal por más de 10 minutos'); } 
-            else if (!isStale && !isLost && v.alerta_desconexion) { db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null); enviarNotificacionPersistente(vId, uData.name, 'REANUDACION', 'Recuperó conexión GPS'); }
+            if (isStale && !isExternal && !v.alerta_desconexion) { db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true); enviarNotificacionPersistente(vId, safeName, 'DESCONEXION', 'Perdió señal por más de 10 minutos'); } 
+            else if (!isStale && !isLost && v.alerta_desconexion) { db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null); enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'Recuperó conexión GPS'); }
 
             if(!isExternal && !isLost && !isStale) {
                 if(v.t_salida && !v.t_arribo) {
                     if (speed < 4) { 
                         if (!v.t_parada_inicio) { db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now()); } 
-                        else {
-                            let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
-                            if (minsDetenido >= 5 && !v.alerta_detenida_activa_gps) { db.ref('viajes_activos/'+vId).update({ alerta_detenida_activa_gps: true, alerta_detenida: true }); enviarNotificacionPersistente(vId, uData.name, 'PARADA', 'Detenida por más de 5 minutos'); }
-                        }
+                        else { let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000; if (minsDetenido >= 5 && !v.alerta_detenida_activa_gps) { db.ref('viajes_activos/'+vId).update({ alerta_detenida_activa_gps: true, alerta_detenida: true }); enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida por más de 5 minutos'); } }
                     } else if (speed >= 4) { 
                         if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
-                        if (v.alerta_detenida_activa_gps) { db.ref('viajes_activos/'+vId+'/alerta_detenida_activa_gps').set(null); enviarNotificacionPersistente(vId, uData.name, 'REANUDACION', 'Retomó movimiento tras parada'); }
+                        if (v.alerta_detenida_activa_gps) { db.ref('viajes_activos/'+vId+'/alerta_detenida_activa_gps').set(null); enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'Retomó movimiento tras parada'); }
                     }
                 }
-                
-                if (!v.t_salida && !v.salida_notificada && speed >= 4) {
-                    let cOrigen = limpiarStr(v.origen); let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                    if ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10) { db.ref('viajes_activos/'+vId+'/salida_notificada').set(true); enviarNotificacionPersistente(vId, uData.name, 'SALIDA', `Salió de Origen: ${cOrigen||'Base'}`); }
-                }
-
-                if (v.t_arribo && !v.t_fin && !v.fin_notificado && speed >= 10) {
-                    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let targetDest = arrDests[v.destino_idx || 0] || v.destino; let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                    if (!zonaActual || !zonaActual.includes(targetDest)) { db.ref('viajes_activos/'+vId+'/fin_notificado').set(true); enviarNotificacionPersistente(vId, uData.name, 'FINALIZACION', `Se alejó del destino: ${targetDest}`); }
-                }
+                if (!v.t_salida && !v.salida_notificada && speed >= 4) { let cOrigen = limpiarStr(v.origen); let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); if ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10) { db.ref('viajes_activos/'+vId+'/salida_notificada').set(true); enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de Origen: ${cOrigen||'Base'}`); } }
+                if (v.t_arribo && !v.t_fin && !v.fin_notificado && speed >= 10) { let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let targetDest = arrDests[v.destino_idx || 0] || v.destino; let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); if (!zonaActual || !zonaActual.includes(targetDest)) { db.ref('viajes_activos/'+vId+'/fin_notificado').set(true); enviarNotificacionPersistente(vId, safeName, 'FINALIZACION', `Se alejó del destino: ${targetDest}`); } }
             }
             
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell) { 
                 if (isExternal) { 
                     let timeExtHover = v.t_ubicacion_manual ? formatTimeFriendly(v.t_ubicacion_manual) : '--:--'; let timeExtAgo = v.t_ubicacion_manual ? timeAgo(Math.floor(v.t_ubicacion_manual/1000)) : '--';
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeExtHover}"><span class="text-info">Act: hace ${timeExtAgo}</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
-                } else if (isLost || isStale) { elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div><div style="font-size:0.65rem; color:#ef4444; font-weight:800;">Modo Offline</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; } 
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeExtHover}"><span class="text-info">Act: hace ${timeExtAgo}</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${escapeSafe(v.ubicacion_manual||'--')}</div></div></div>`; 
+                } else if (isLost || isStale) { elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div><div style="font-size:0.65rem; color:#ef4444; font-weight:800;">Modo Offline</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${escapeSafe(v.ubicacion_manual||'--')}</div></div></div>`; } 
                 else { 
                     let speedBg = "#64748b"; if(speed > 0 && speed < 100) speedBg = "#10b981"; if(speed >= 100) speedBg = "#ef4444"; 
                     let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; let timeColor = 'text-primary'; let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); 
                     let elOldAddr = document.getElementById("addr_" + vId); let addrText = (elOldAddr && !elOldAddr.innerText.includes("Buscando...")) ? elOldAddr.innerHTML : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`; 
-                    if(geocodeCache[geoKey]) { addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}`; }
+                    if(geocodeCache[geoKey]) { addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${escapeSafe(geocodeCache[geoKey])}`; }
                     let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; let timeHover = formatTimeFriendly(pos.t); 
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center">${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span> ${geoHtml}</div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}"><span class="${timeColor}">(${timeAgo(pos.t)})</span></div></div><div class="d-flex align-items-center w-100"><a href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps"><div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div></a></div></div>`; 
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center">${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span> ${geoHtml}</div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}"><span class="${timeColor}">(${timeAgo(pos.t)})</span></div></div><div class="d-flex align-items-center w-100"><a href="https://www.google.com/maps?q=lat,lng${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps"><div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div></a></div></div>`; 
                 } 
             } 
             
             let btnName = document.getElementById("name_btn_" + vId); if (btnName && pos && pos.y && pos.x) { btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); } else if (btnName) { btnName.setAttribute("onclick", `centrarUnidadMapa(null, null)`); } 
             
             let wialonDriverObj = uData ? uData.choferObj : null; let elOpWialon = document.getElementById("op_wialon_" + vId); 
-            if (elOpWialon) { if (wialonDriverObj && wialonDriverObj.nombre !== "Sin asignar") { let telRaw = wialonDriverObj.tel || ""; let cleanTel = String(telRaw).replace(/\D/g,''); elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${wialonDriverObj.nombre}</div><div class="fw-bold text-muted user-select-all mt-1" style="font-size:0.7rem;">${telRaw}</div>`; } else if (v.operador) { elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${v.operador}</div><div style="font-size:0.6rem; color:#64748b;">(Manual)</div>`; } else { elOpWialon.innerHTML = '<span class="badge bg-secondary w-100 mt-1" style="font-size:0.65rem;">Sin asignar</span>'; } } 
+            if (elOpWialon) { if (wialonDriverObj && wialonDriverObj.nombre !== "Sin asignar") { let telRaw = wialonDriverObj.tel || ""; let cleanTel = String(telRaw).replace(/\D/g,''); elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${escapeSafe(wialonDriverObj.nombre)}</div><div class="fw-bold text-muted user-select-all mt-1" style="font-size:0.7rem;">${escapeSafe(telRaw)}</div>`; } else if (v.operador) { elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${escapeSafe(v.operador)}</div><div style="font-size:0.6rem; color:#64748b;">(Manual)</div>`; } else { elOpWialon.innerHTML = '<span class="badge bg-secondary w-100 mt-1" style="font-size:0.65rem;">Sin asignar</span>'; } } 
             
-            let elAlertas = document.getElementById("alertas_" + vId); if (elAlertas) { elAlertas.innerHTML = v.alerta ? `<span class="text-danger fw-bold" style="font-size:0.85rem;">${v.alerta.txt}</span>` : `<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>`; } 
+            let elAlertas = document.getElementById("alertas_" + vId); if (elAlertas) { elAlertas.innerHTML = v.alerta ? `<span class="text-danger fw-bold" style="font-size:0.85rem;">${escapeSafe(v.alerta.txt)}</span>` : `<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>`; } 
         } catch(e) { console.error("Error GPS:", vId, e); } 
     }); 
     desencadenarGeocoding(); 
 }
 
-function desencadenarGeocoding() {
-    Object.keys(viajesActivos).forEach(vId => {
-        let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; 
-        let uData = encontrarUnidad(v, vId); 
-        let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); let targetDest = arrDests[v.destino_idx || 0] || v.destino;
+// --- ARRANQUE DEL SISTEMA ---
+window.autenticarUsuario = function(aU, aP) {
+    let strU = (typeof aU === 'string') ? aU : document.getElementById("logUser").value.trim();
+    let strP = (typeof aP === 'string') ? aP : document.getElementById("logPass").value.trim();
+    if(!strU || !strP) return;
+    document.getElementById("status").innerText = "Conectando..."; document.getElementById("status").className = "mt-3 small fw-bold text-primary";
+    db.ref(`sistema/usuarios/${strU}`).once('value').then(s => { let user = s.val(); if(!user && strU === "admin" && strP === "admin123") { user = { pass: "admin123", rol: "admin", nom: "Administrador Maestro" }; } if(user && user.pass === strP) { currentUser = user; localStorage.setItem("tms_user", strU); localStorage.setItem("tms_pass", strP); document.getElementById("loginOverlay").style.display = "none"; document.getElementById("dashboard").style.display = "flex"; document.getElementById("lblUsuarioActivo").innerHTML = "<i class='fa-solid fa-user-shield me-1'></i> Monitor: " + currentUser.nom; if(currentUser.rol === "admin") document.getElementById("btnAdminMenu").style.display = "block"; if(!motorArrancado) arranqueMotor(); } else { document.getElementById("status").innerText = "Credenciales Incorrectas"; document.getElementById("status").className = "mt-3 small fw-bold text-danger"; } }).catch(err => { document.getElementById("status").innerText = "Error de red."; document.getElementById("status").className = "mt-3 small fw-bold text-danger"; });
+};
 
-        if(uData && uData.pos) {
-            let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(uData.pos.y, uData.pos.x));
-            if(zonaGeo && targetDest && !v.t_arribo && !v.arribo_notificado && zonaGeo.includes(targetDest)) { db.ref('viajes_activos/'+vId+'/arribo_notificado').set(true); enviarNotificacionPersistente(vId, uData.name, 'ARRIBO', `Llegó a Geocerca: ${zonaGeo}`); }
-            
-            let geoKey = `${uData.pos.y.toFixed(4)}_${uData.pos.x.toFixed(4)}`;
-            if(!geocodeCache[geoKey] && !geoQueue.find(i => i.key === geoKey)) { geoQueue.push({ key: geoKey, y: uData.pos.y, x: uData.pos.x, vId: vId, dest: targetDest }); } 
-            else if(geocodeCache[geoKey] && targetDest && !v.t_arribo && !v.arribo_notificado && limpiarStr(geocodeCache[geoKey]).includes(targetDest)) { db.ref('viajes_activos/'+vId+'/arribo_notificado').set(true); enviarNotificacionPersistente(vId, uData.name, 'ARRIBO', `Llegó a Calle: ${targetDest}`); }
-        }
-    });
-}
-
-function procesarFilaDirecciones() {
-    if(isGeocoding || geoQueue.length === 0) return; 
-    isGeocoding = true; let item = geoQueue.shift();
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${item.y}&lon=${item.x}&zoom=16`).then(r => r.json()).then(d => { let a = d.display_name || "Sin dirección"; geocodeCache[item.key] = a; localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache)); document.querySelectorAll(`.addr-span-${item.key}`).forEach(span => span.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${a}`); if(item.dest && limpiarStr(a).includes(item.dest)) { let v = viajesActivos[item.vId]; if(v && !v.t_arribo && !v.arribo_notificado) { db.ref('viajes_activos/'+item.vId+'/arribo_notificado').set(true); enviarNotificacionPersistente(item.vId, unidadesGlobales[item.vId]?.name || 'Unidad', 'ARRIBO', `Llegó a Calle: ${item.dest}`); } } }).catch(e => console.log("Geo Err")).finally(() => { isGeocoding = false; });
-}
-
-function vincularOperador() { let u = limpiarStr(document.getElementById("op_unidad").value); let n = limpiarStr(document.getElementById("op_nombre").value); if(u && n) { db.ref(`operadores/${u}`).set(n); document.getElementById("op_unidad").value = ""; document.getElementById("op_nombre").value = ""; mostrarNotificacion("Operador vinculado."); } }
-function crearCliente() { let nom = limpiarStr(document.getElementById("cli_nombre").value); let fileInput = document.getElementById("cli_logo_file"); if(!nom) return; if (fileInput && fileInput.files && fileInput.files[0]) { let reader = new FileReader(); reader.onload = function(e) { db.ref('clientes').push({nombre: nom, logo: e.target.result}); document.getElementById("cli_nombre").value = ""; fileInput.value = ""; mostrarNotificacion("Cliente creado."); }; reader.readAsDataURL(fileInput.files[0]); } else { db.ref('clientes').push({nombre: nom, logo: ""}); document.getElementById("cli_nombre").value = ""; if(fileInput) fileInput.value = ""; mostrarNotificacion("Cliente creado."); } }
-function crearSubcliente() { db.ref(`clientes/${document.getElementById("sub_clientePadre").value}/subclientes`).push({nombre: limpiarStr(document.getElementById("sub_nombre").value)}); document.getElementById("sub_nombre").value = ""; mostrarNotificacion("Subcliente creado."); }
-function crearUsuario() { let id = document.getElementById("usr_id").value.trim().toLowerCase(); let nom = document.getElementById("usr_nom").value.trim(); let pass = document.getElementById("usr_pass").value.trim(); if(id && nom && pass) { db.ref(`sistema/usuarios/${id}`).set({nom: nom, pass: pass, rol: "monitor"}); document.getElementById("usr_id").value=""; document.getElementById("usr_nom").value=""; document.getElementById("usr_pass").value=""; mostrarNotificacion("Usuario creado."); } }
-
-function actualizarListasAdmin() { 
-    let s = document.getElementById("sub_clientePadre"); s.innerHTML = Object.keys(dataClientes).map(k => `<option value="${k}">${dataClientes[k].nombre}</option>`).join(''); 
-    document.getElementById("listaClientesAdmin").innerHTML = Object.keys(dataClientes).map(k => { let c = dataClientes[k]; let logoText = c.logo ? `<i class="fa-solid fa-image text-success ms-1" title="Logo"></i>` : ''; let safeNom = (c.nombre || '').replace(/'/g, "\\'"); return `<li class="list-group-item d-flex justify-content-between align-items-center p-1 fs-8"><span class="text-truncate" style="max-width:60%;">${c.nombre} ${logoText}</span><div class="text-nowrap"><i class="fa-solid fa-pencil text-primary cp me-2" onclick="let n=prompt('Editar:', '${safeNom}'); if(n){ db.ref('clientes/${k}').update({nombre: limpiarStr(n)}); }"></i><i class="fa-solid fa-trash text-danger cp" onclick="if(confirm('¿Borrar Cliente?')) db.ref('clientes/${k}').remove()"></i></div></li>`; }).join(''); 
-    let subHtml = ""; Object.keys(dataClientes).forEach(cId => { if(dataClientes[cId].subclientes) { Object.keys(dataClientes[cId].subclientes).forEach(sId => { subHtml += `<li class="list-group-item d-flex justify-content-between p-1 fs-8"><b>${dataClientes[cId].nombre}</b> - ${dataClientes[cId].subclientes[sId].nombre} <i class="fa-solid fa-trash text-danger cp" onclick="if(confirm('¿Borrar?')) db.ref('clientes/${cId}/subclientes/${sId}').remove()"></i></li>`; }); } }); document.getElementById("listaSubclientesAdmin").innerHTML = subHtml; 
-    db.ref('sistema/usuarios').once('value', snap => { let usrs = snap.val() || {}; document.getElementById("listaUsuariosAdmin").innerHTML = Object.keys(usrs).map(k => k === 'admin' ? `<li class="list-group-item p-1 fs-8"><b>admin</b> (Maestro)</li>` : `<li class="list-group-item d-flex justify-content-between p-1 fs-8"><b>${k}</b> <span class="ps-1">${usrs[k].nom}</span> <i class="fa-solid fa-trash text-danger cp" onclick="if(confirm('¿Borrar?')) db.ref('sistema/usuarios/${k}').remove()"></i></li>`).join(''); }); 
-}
-function agregarToken() { db.ref('sistema/tokens').push({ nombre: limpiarStr(document.getElementById("tk_nom").value), token: document.getElementById("tk_val").value, url: document.getElementById("tk_url").value }); document.getElementById("tk_nom").value=""; document.getElementById("tk_val").value=""; mostrarNotificacion("Nuevo Token."); }
-function actualizarListaTokensAdmin(tks) { const lista = document.getElementById("listaStatusTokens"); if(lista) { lista.innerHTML = Object.keys(tks || {}).map(id => `<li class="list-group-item d-flex justify-content-between p-1 fs-8"><b>${tks[id].nombre}</b> <i class="fa-solid fa-trash text-danger cp" onclick="if(confirm('¿Borrar Token?')) { db.ref('sistema/tokens/${id}').remove().then(()=>location.reload()); }"></i></li>`).join(''); } }
-
-function peticionWialon(url, svc, params, sid=null) { 
-    return new Promise(resolve => { 
-        let script = document.createElement("script"); let cb = "wialon_cb_" + Date.now() + Math.floor(Math.random()*1000); 
-        let timeout = setTimeout(() => { delete window[cb]; script.remove(); resolve(null); }, 8000); 
-        window[cb] = d => { clearTimeout(timeout); delete window[cb]; script.remove(); resolve(d); }; 
-        script.onerror = () => { clearTimeout(timeout); delete window[cb]; script.remove(); resolve(null); }; 
-        script.src = `${url.replace(/\/$/, '')}/wialon/ajax.html?svc=${svc}&params=${encodeURIComponent(JSON.stringify(params))}&callback=${cb}${sid?'&sid='+sid:''}`; 
-        document.head.appendChild(script); 
-    }); 
-}
+window.onload = function () {
+    aplicarAnchosGuardados(); inicializarMenuColumnas();
+    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; actualizarListasAdmin(); solicitarRenderizado(); });
+    db.ref('viajes_activos').on('value', s => { viajesActivos = s.val() || {}; solicitarRenderizado(); });
+    db.ref('sistema/tokens').on('value', s => { let tks = s.val() || {}; configSistema.tokens = Object.values(tks); actualizarListaTokensAdmin(tks); if(currentUser && !motorArrancado) arranqueMotor(); });
+    document.getElementById("logPass").addEventListener("keyup", e => e.key === "Enter" && autenticarUsuario(null, null));
+    let sU = localStorage.getItem("tms_user"); let sP = localStorage.getItem("tms_pass"); if(sU && sP) autenticarUsuario(sU, sP);
+    setInterval(procesarFilaDirecciones, 1100); 
+};
 
 async function arranqueMotor() { if(pollingInterval) clearInterval(pollingInterval); motorArrancado = true; await sincronizarFlotas(); pollingInterval = setInterval(sincronizarFlotas, 20000); }
 function renderStatusTokens() { const lista = document.getElementById("listaStatusTokens"); let html = ""; for(let tk in estadoTokens) { let stat = estadoTokens[tk]; let badge = stat.status === 'OK' ? '<span class="badge bg-success shadow-sm">ONLINE</span>' : '<span class="badge bg-danger shadow-sm">OFFLINE</span>'; html += `<li class="list-group-item d-flex justify-content-between align-items-center p-2"><div class="fw-bold" style="font-size:0.8rem;">${tk}</div> <div><span class="badge bg-secondary me-2 shadow-sm">${stat.count} Unidades</span> ${badge}</div></li>`; } lista.innerHTML = html || '<li class="list-group-item text-center">No hay tokens</li>'; }
@@ -841,43 +513,24 @@ async function sincronizarFlotas() {
                 if(!activeSIDs[tk.token]) { let l = await peticionWialon(tk.url, "token/login", {token: tk.token}); if(l && l.eid) activeSIDs[tk.token] = { sid: l.eid }; } 
                 let auth = activeSIDs[tk.token]; if(!auth || !auth.sid) { estadoTokens[tk.nombre] = { status: 'ERR', count: 0 }; return; } 
                 let autoLoginUrl = `${tk.url.includes("hst-api") ? "https://hosting.wialon.com" : tk.url}/login.html?token=${tk.token}`; 
-                
                 let reqR = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_resource", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 256 + 4096, from: 0, to: 4294967295 }, auth.sid); 
                 let diccChoferes = {}; let diccZonasReq = {}; let diccZonasNombres = {}; 
-                
                 if(reqR && reqR.items) { 
                     reqR.items.forEach(r => { 
                         let rId = r.id; diccZonasReq[rId] = []; diccZonasNombres[rId] = {}; 
                         if(r.zl) { Object.values(r.zl).forEach(z => { diccZonasReq[rId].push(z.id); diccZonasNombres[rId][z.id] = z.n; tempGeo.push(z); }); } 
-                        if(r.drvrs || r.drv) { 
-                            let drivers = r.drvrs || r.drv; 
-                            Object.values(drivers).forEach(d => { 
-                                let telStr = d.p ? String(d.p) : ""; let objC = { nombre: limpiarStr(d.n), tel: telStr, cod: d.c || "---", rid: rId, id: d.id };
-                                if(d.bu && d.bu > 0) { diccChoferes[d.bu] = objC; } 
-                                tempChoferes[objC.nombre] = objC;
-                            }); 
-                        } 
+                        if(r.drvrs || r.drv) { let drivers = r.drvrs || r.drv; Object.values(drivers).forEach(d => { let telStr = d.p ? String(d.p) : ""; let objC = { nombre: limpiarStr(d.n), tel: telStr, cod: d.c || "---", rid: rId, id: d.id }; if(d.bu && d.bu > 0) { diccChoferes[d.bu] = objC; } tempChoferes[objC.nombre] = objC; }); } 
                     }); 
                 } 
-                
                 let reqU = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_unit", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 1024, from: 0, to: 4294967295 }, auth.sid); 
-                
                 if(reqU && reqU.items) { 
                     conexionesExitosas++; estadoTokens[tk.nombre] = { status: 'OK', count: reqU.items.length }; 
-                    let uIds = reqU.items.map(u => u.id); let checkGeo = {}; 
-                    if(uIds.length > 0) { checkGeo = await peticionWialon(tk.url, "resource/get_zones_by_unit", { spec: { zoneId: diccZonasReq, units: uIds, time: 0 } }, auth.sid); }
-                    
+                    let uIds = reqU.items.map(u => u.id); let checkGeo = {}; if(uIds.length > 0) { checkGeo = await peticionWialon(tk.url, "resource/get_zones_by_unit", { spec: { zoneId: diccZonasReq, units: uIds, time: 0 } }, auth.sid); }
                     reqU.items.forEach(u => { 
-                        let n = limpiarStr(u.nm || "Desconocida"); let chofer = diccChoferes[u.id] || { nombre: "Sin asignar", tel: "", cod: "---", rid: null }; 
-                        let miZona = null; let recursoDueño = chofer.rid ? chofer.rid : u.bact; 
-                        
-                        if (recursoDueño && checkGeo && checkGeo[recursoDueño]) { 
-                            for (let zId in checkGeo[recursoDueño]) { if (checkGeo[recursoDueño][zId].includes(u.id)) { miZona = diccZonasNombres[recursoDueño][zId]; break; } } 
-                        } else if (checkGeo) { 
-                            for (let rId in checkGeo) { for (let zId in checkGeo[rId]) { if (checkGeo[rId][zId].includes(u.id)) { miZona = diccZonasNombres[rId][zId]; break; } } if (miZona) break; } 
-                        } 
-                        tempUnits[u.id] = { id: u.id, name: n, pos: u.pos, loginUrl: autoLoginUrl, choferObj: chofer, zonaOficial: miZona, tkNombre: tk.nombre }; 
-                        listUni.add(n); 
+                        let n = limpiarStr(u.nm || "Desconocida"); let chofer = diccChoferes[u.id] || { nombre: "Sin asignar", tel: "", cod: "---", rid: null }; let miZona = null; let recursoDueño = chofer.rid ? chofer.rid : u.bact; 
+                        if (recursoDueño && checkGeo && checkGeo[recursoDueño]) { for (let zId in checkGeo[recursoDueño]) { if (checkGeo[recursoDueño][zId].includes(u.id)) { miZona = diccZonasNombres[recursoDueño][zId]; break; } } } 
+                        else if (checkGeo) { for (let rId in checkGeo) { for (let zId in checkGeo[rId]) { if (checkGeo[rId][zId].includes(u.id)) { miZona = diccZonasNombres[rId][zId]; break; } } if (miZona) break; } } 
+                        tempUnits[u.id] = { id: u.id, name: n, pos: u.pos, loginUrl: autoLoginUrl, choferObj: chofer, zonaOficial: miZona, tkNombre: tk.nombre }; listUni.add(n); 
                     }); 
                 } else { estadoTokens[tk.nombre] = { status: 'ERR', count: 0 }; } 
             } catch(errTk) { console.error("Token Falló:", tk.nombre); } 
@@ -893,8 +546,6 @@ async function sincronizarFlotas() {
             else indMenu.innerHTML = `<span class="badge bg-danger shadow-sm rounded-pill py-1 px-2">Error GPS - Offline</span>`; 
         } 
         
-        renderStatusTokens(); inyectarGPSenTabla(); solicitarRenderizado(); // Se inyecta la info y se le avisa al motor que dibuje con calma
-        if(mapVisible) { actualizarMarcadoresMapa(); pintarGeocercasEnMapa(); } 
-        
+        renderStatusTokens(); inyectarGPSenTabla(); solicitarRenderizado();
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
 }
