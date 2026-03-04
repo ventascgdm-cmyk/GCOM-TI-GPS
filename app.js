@@ -14,10 +14,12 @@ function mostrarNotificacion(msg) {
 let UI_PAUSED = false;
 document.addEventListener('show.bs.dropdown', (e) => { 
     UI_PAUSED = true; 
+    document.body.classList.add('dropdown-open'); // Apaga el escudo de las cabeceras
     let tr = e.target.closest('tr'); if(tr) tr.classList.add('dropdown-active');
 });
 document.addEventListener('hide.bs.dropdown', (e) => { 
     UI_PAUSED = false; 
+    document.body.classList.remove('dropdown-open'); // Enciende el escudo
     let tr = e.target.closest('tr'); if(tr) tr.classList.remove('dropdown-active');
     setTimeout(renderizarBitacora, 200); 
 });
@@ -404,11 +406,16 @@ window.generarReporteGrupal = function(cId, sId, titulo) {
 // --- CAPTURA INTELIGENTE CON BORRADO ABSOLUTO (PUNTO 4) ---
 async function generarCapturaCliente(cId, cliName) {
     let tableWrap = document.getElementById('scrollContainer'); let allRows = document.querySelectorAll('#units-body tr'); let hiddenRows = [];
-    
     allRows.forEach(r => { if(!r.classList.contains(`client-group-${cId}`)) { hiddenRows.push({el: r, display: r.style.display}); r.style.display = 'none'; } });
     
-    // AQUÍ AGREGAMOS LAS CLASES DEL HISTORIAL Y EL TELÉFONO PARA QUE DESAPAREZCAN EN LA FOTO
-    document.querySelectorAll('.col-alertas, .col-accion, .col-historial, .dropdown-toggle, .btn-dots, .dropdown, .fw-bold.text-muted.user-select-all.mt-1').forEach(el => el.classList.add('oculto-en-captura'));
+    // BORRADO ABSOLUTO E INLINE DE LAS COLUMNAS REBELDES
+    let colsToHide = document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .col-historial');
+    let originalDisplaysCols = [];
+    colsToHide.forEach(el => { originalDisplaysCols.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
+
+    let extraHides = document.querySelectorAll('.dropdown-toggle, .btn-dots, .fw-bold.text-muted.user-select-all.mt-1');
+    let originalDisplaysExtras = [];
+    extraHides.forEach(el => { originalDisplaysExtras.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
     
     let oldHeight = tableWrap.style.height; let oldMaxHeight = tableWrap.style.maxHeight; let oldOverflow = tableWrap.style.overflow;
     tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible';
@@ -424,10 +431,13 @@ async function generarCapturaCliente(cId, cliName) {
     } catch(e) { console.error(e); alert("Error al generar captura de pantalla."); } 
     finally {
         tableWrap.style.height = oldHeight; tableWrap.style.maxHeight = oldMaxHeight; tableWrap.style.overflow = oldOverflow;
-        document.getElementById("mainTable").style.width = oldW; hiddenRows.forEach(item => item.el.style.display = item.display);
-        document.querySelectorAll('.oculto-en-captura').forEach(el => el.classList.remove('oculto-en-captura'));
+        document.getElementById("mainTable").style.width = oldW; 
+        hiddenRows.forEach(item => item.el.style.display = item.display);
+        colsToHide.forEach((el, i) => el.style.display = originalDisplaysCols[i].disp);
+        extraHides.forEach((el, i) => el.style.display = originalDisplaysExtras[i].disp);
     }
 }
+
 function descargarCaptura() { if(!currentCaptureBlob) return; let link = document.createElement('a'); link.download = `Estatus_Bitacora.png`; link.href = URL.createObjectURL(currentCaptureBlob); link.click(); }
 async function copiarCaptura() { if(!currentCaptureBlob) return; try { const item = new ClipboardItem({ "image/png": currentCaptureBlob }); await navigator.clipboard.write([item]); alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp Web (Ctrl+V)."); } catch (err) { alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); } }
 
@@ -568,18 +578,20 @@ window.abrirModalEdicionHora = function(vId, field, titulo, actualTs) {
     let defaultD = (actualTs && actualTs !== 'null') ? new Date(Number(actualTs)) : new Date();
     if(fpInstance) fpInstance.destroy();
     
-    // Configuración para 24 horas y entrada manual total
+    let modalEl = document.getElementById('modalEditHora');
+    
     fpInstance = flatpickr("#eh_input", {
         enableTime: true,
-        dateFormat: "Y-m-d H:i", // Formato militar de 24 hrs
+        dateFormat: "Y-m-d H:i",
         defaultDate: defaultD,
         locale: "es",
         time_24hr: true,
         minuteIncrement: 1, 
-        allowInput: true 
+        allowInput: true,
+        appendTo: modalEl // ESTA LÍNEA PERMITE ESCRIBIR CON EL TECLADO
     });
     
-    new bootstrap.Modal(document.getElementById('modalEditHora')).show();
+    new bootstrap.Modal(modalEl).show();
 };
 
 window.guardarHorarioModal = function() {
@@ -1012,6 +1024,7 @@ async function sincronizarFlotas() {
         
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
 }
+
 
 
 
