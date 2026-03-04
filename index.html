@@ -30,7 +30,7 @@
         <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario">
         <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
         <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
-        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master v36.4 (Multi-Destino)</div>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master (Estable)</div>
     </div>
 </div>
 
@@ -61,8 +61,6 @@
         </div>
 
         <div class="btn-action-group d-flex align-items-center">
-            <button class="btn btn-outline-secondary fw-bold me-2 shadow-sm rounded-pill px-3 py-2 bg-white" data-bs-toggle="modal" data-bs-target="#modalArchivarMasivo" title="Limpiar Bitácora"><i class="fa-solid fa-broom text-dark"></i></button>
-
             <div class="dropdown d-inline-block me-2">
                 <button class="btn btn-light fw-bold dropdown-toggle border shadow-sm rounded-pill px-4 py-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
                     <i class="fa-solid fa-gear text-primary me-1"></i> Panel
@@ -129,8 +127,6 @@
     </div>
 </div>
 
-<div class="modal fade" id="modalArchivarMasivo" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-dark text-white border-0 py-3"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-broom me-2"></i> LIMPIAR BITÁCORA</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-3 text-center"><p class="text-muted fw-bold" style="font-size:0.8rem;">Archivar todos los viajes con estatus "8. Finalizado" de:</p><select id="selClienteArchivar" class="form-select form-select-sm border-primary fw-bold text-uppercase mb-3"></select><button class="btn btn-danger w-100 fw-bold rounded-pill shadow-sm" onclick="ejecutarArchivadoMasivo()"><i class="fa-solid fa-trash-can me-1"></i> ARCHIVAR SELECCIÓN</button></div></div></div></div>
-
 <div class="modal fade" id="modalNuevoViaje" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -194,6 +190,5 @@
 <datalist id="list_clientes"></datalist><datalist id="list_subclientes"></datalist><datalist id="listaGeocercas"></datalist><datalist id="listaConductores"></datalist><datalist id="listaUnidadesTotales"></datalist>
 
 <script src="app.js"></script>
-
 </body>
 </html>
