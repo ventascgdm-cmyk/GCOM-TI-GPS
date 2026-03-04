@@ -1,12 +1,36 @@
+// ============================================================================
+// GRUDICOM TI & GPS - C4 MASTER (v8.0 Estabilizada y Seccionada)
+// PARTE 1: CONFIGURACIÓN, UTILIDADES Y CONTROL DE INTERFAZ
+// ============================================================================
+
 const firebaseConfig = { databaseURL: "https://monitoreo-logistica-default-rtdb.firebaseio.com/" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+function mostrarNotificacion(msg) {
+    document.getElementById('sysToastBody').innerText = msg;
+    new bootstrap.Toast(document.getElementById('sysToast')).show();
+}
+
+// --- CONTROL DE PARPADEOS EN UI ---
 let UI_PAUSED = false;
-document.addEventListener('show.bs.dropdown', () => { UI_PAUSED = true; });
-document.addEventListener('hide.bs.dropdown', () => { UI_PAUSED = false; setTimeout(renderizarBitacora, 100); });
-document.addEventListener('focusin', (e) => { if(['INPUT', 'TEXTAREA'].includes(e.target.tagName)) UI_PAUSED = true; });
-document.addEventListener('focusout', (e) => { if(['INPUT', 'TEXTAREA'].includes(e.target.tagName)) { UI_PAUSED = false; setTimeout(renderizarBitacora, 100); } });
+document.addEventListener('show.bs.dropdown', (e) => { 
+    UI_PAUSED = true; document.body.classList.add('dropdown-open');
+    let tr = e.target.closest('tr'); if(tr) tr.classList.add('dropdown-active');
+});
+document.addEventListener('hide.bs.dropdown', (e) => { 
+    UI_PAUSED = false; document.body.classList.remove('dropdown-open');
+    let tr = e.target.closest('tr'); if(tr) tr.classList.remove('dropdown-active');
+    setTimeout(solicitarRenderizado, 150); 
+});
+document.addEventListener('focusin', (e) => { 
+    if(['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+        if(e.target.closest('#mainTable')) UI_PAUSED = true; 
+    }
+});
+document.addEventListener('focusout', (e) => { 
+    UI_PAUSED = false; setTimeout(solicitarRenderizado, 150); 
+});
 
 let currentUser = null, configSistema = { tokens: [] }, dataClientes = {}, viajesActivos = {};
 let unidadesGlobales = {}, ramDrivers = {}, dbOperadores = {}, geocercasNativas = [], activeSIDs = {}, pollingInterval = null;
@@ -19,6 +43,18 @@ let geocodeCache = JSON.parse(localStorage.getItem('tms_geoCache')) || {};
 let geoQueue = []; let isGeocoding = false; let motorArrancado = false; let isSyncingFlotas = false;
 let currentCaptureBlob = null; 
 
+// --- SISTEMA ANTI-PARPADEO (AMORTIGUADOR) ---
+let renderTimer = null;
+function solicitarRenderizado() {
+    if(renderTimer) return; 
+    renderTimer = setTimeout(() => { 
+        renderTimer = null; 
+        renderizarBitacora(); 
+        if(mapVisible) actualizarMarcadoresMapa(); 
+    }, 200); 
+}
+
+// --- PRIORIDADES ESTRICTAS DE COLUMNAS ---
 const columnasDef = {
     'col-unidad': { titulo: 'UNIDAD', ancho: '110' },
     'col-operador': { titulo: 'OPERADOR GPS', ancho: '150' },
@@ -31,7 +67,7 @@ const columnasDef = {
     'col-historial': { titulo: 'HISTORIAL LOG', ancho: '240' }, 
     'col-accion': { titulo: '<i class="fa-solid fa-bars"></i>', ancho: '65' }
 };
-
+    
 let colOrder = JSON.parse(localStorage.getItem('tms_colOrder'));
 if (!colOrder || colOrder.length !== Object.keys(columnasDef).length) colOrder = Object.keys(columnasDef);
 
@@ -41,84 +77,25 @@ window.estatusData = {
     "s1":{nombre:"1. Ruta",col:"#10b981"}, "s2":{nombre:"1.1 PARADO",col:"#ef4444"}, "s3":{nombre:"1.2 RETEN",col:"#d97706"}, "s4":{nombre:"1.3 Resguardo",col:"#8b5cf6"}, "s5":{nombre:"1.4 REGRESANDO",col:"#f59e0b"}, "s6":{nombre:"2. Incidencia",col:"#be123c"}, "s7":{nombre:"3. Cargando",col:"#64748b"}, "s8":{nombre:"4. Descargando",col:"#0284c7"}, "s9":{nombre:"5. Patio GDL",col:"#06b6d4"}, "s10":{nombre:"6. Patio Reynosa",col:"#14b8a6"}, "s11":{nombre:"7. Taller",col:"#94a3b8"}, "s12":{nombre:"8. Finalizado",col:"#1e40af"}, "s13":{nombre:"9. Baja cobertura",col:"#fbbf24"}, "s14":{nombre:"ALIMENTOS",col:"#f59e0b"} 
 };
 
-// --- LOGICA DE HUBS CENTRALIZADOS ---
-db.ref('notificaciones_pendientes').on('value', snap => {
-    let data = snap.val() || {}; alertasSeguridad = {}; alertasLogistica = {};
-    Object.keys(data).forEach(k => { let notif = data[k]; notif.id = k; if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) alertasLogistica[k] = notif; else alertasSeguridad[k] = notif; });
-    actualizarBotonesHubs();
-});
-
-window.enviarNotificacionPersistente = function(vId, unidadName, tipo, detalle) {
-    let idLogico = vId + "_" + tipo; db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { if(!snap.exists()) { db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); } });
-};
-
-window.actualizarBotonesHubs = function() {
-    let cSeg = Object.keys(alertasSeguridad).length; let cLog = Object.keys(alertasLogistica).length;
-    let bSeg = document.getElementById("btnHubSeguridad"); let lSeg = document.getElementById("lblCountSeguridad");
-    if(bSeg && lSeg) { if(cSeg>0) { lSeg.innerText=cSeg; bSeg.classList.remove("d-none"); } else { bSeg.classList.add("d-none"); try{ bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); }catch(e){} } }
-    let bLog = document.getElementById("btnHubLogistico"); let lLog = document.getElementById("lblCountLogistico");
-    if(bLog && lLog) { if(cLog>0) { lLog.innerText=cLog; bLog.classList.remove("d-none"); } else { bLog.classList.add("d-none"); try{ bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); }catch(e){} } }
-};
-
-window.abrirHubSeguridad = function() {
-    let container = document.getElementById("listaHubSeguridad"); container.innerHTML = "";
-    let count = Object.keys(alertasSeguridad).length; if (count === 0) return;
-    Object.values(alertasSeguridad).forEach(n => {
-        let icon = n.tipo === "PARADA" ? "fa-stop text-danger" : (n.tipo === "REANUDACION" ? "fa-play text-success" : "fa-triangle-exclamation text-warning");
-        container.innerHTML += `<div class="bg-white p-3 rounded shadow-sm border border-danger mb-3"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${n.unidad}</div><div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Sensor: ${formatTimeFriendly(n.t_evento/1000)})</div></div></div><textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="2" placeholder="Justificación o anotación..."></textarea><div class="d-flex gap-2 justify-content-end"><button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', true)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button><button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', true)"><i class="fa-solid fa-check"></i> Confirmar y Guardar</button></div></div>`;
-    }); new bootstrap.Modal(document.getElementById('modalHubSeguridad')).show();
-};
-
-window.abrirHubLogistico = function() {
-    let container = document.getElementById("listaHubLogistico"); container.innerHTML = "";
-    let count = Object.keys(alertasLogistica).length; if (count === 0) return;
-    Object.values(alertasLogistica).forEach(n => {
-        let icon = n.tipo === "SALIDA" ? "fa-rocket text-primary" : (n.tipo === "ARRIBO" ? "fa-map-pin text-success" : "fa-flag-checkered text-dark"); let borderClass = n.tipo === "SALIDA" ? "border-primary" : (n.tipo === "ARRIBO" ? "border-success" : "border-dark");
-        container.innerHTML += `<div class="bg-white p-3 rounded shadow-sm border ${borderClass} mb-3"><div class="d-flex justify-content-between align-items-start mb-2"><div><div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${n.unidad}</div><div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Sensor: ${formatTimeFriendly(n.t_evento/1000)})</div></div></div><textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="1" placeholder="Nota adicional (opcional)..."></textarea><div class="d-flex gap-2 justify-content-end"><button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', false)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button><button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', false)"><i class="fa-solid fa-check"></i> Confirmar Evento</button></div></div>`;
-    }); new bootstrap.Modal(document.getElementById('modalHubLogistico')).show();
-};
-
-window.confirmarNotificacion = function(id, isSeguridad) {
-    let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
-    let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : "";
-    if(isSeguridad && n.tipo === "PARADA" && !nota) return alert("⚠️ Escribe una justificación para la parada.");
-    let vId = n.vId; let detalleLog = `Sensor: ${formatTimeFriendly(n.t_evento/1000)}`; if (nota) detalleLog += ` | Nota: ${nota}`;
-    
-    if (n.tipo === "SALIDA") { db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); registrarLog(vId, 'Confirmó SALIDA', detalleLog); } 
-    else if (n.tipo === "ARRIBO") { db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); registrarLog(vId, 'Confirmó ARRIBO', detalleLog); } 
-    else if (n.tipo === "FINALIZACION") { db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); } 
-    else if (n.tipo === "PARADA") { db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: true }); registrarLog(vId, 'Justificó PARADA', detalleLog); } 
-    else if (n.tipo === "REANUDACION") { db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); registrarLog(vId, 'Confirmó REANUDACIÓN', detalleLog); } 
-    
-    db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("✅ Evento guardado."); 
-    if(isSeguridad) setTimeout(window.abrirHubSeguridad, 100); else setTimeout(window.abrirHubLogistico, 100);
-};
-
-window.rechazarNotificacion = function(id, isSeguridad) {
-    let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
-    let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : ""; let detalleLog = `Falsa Alarma`; if(nota) detalleLog += ` | Nota: ${nota}`;
-    registrarLog(n.vId, `Rechazó alerta de ${n.tipo}`, detalleLog); db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("🚫 Descartado."); 
-    if(isSeguridad) setTimeout(window.abrirHubSeguridad, 100); else setTimeout(window.abrirHubLogistico, 100);
-};
-
-// --- FUNCIONES MATEMÁTICAS ---
+// --- FUNCIONES MATEMÁTICAS Y DE FECHA ---
 function hexToRgba(hex, alpha) {
     if(!hex || hex.length !== 7) return `rgba(15, 23, 42, ${alpha})`;
     let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function escapeSafe(str) { return str ? String(str).replace(/'/g, "\\'") : ""; }
+function limpiarStr(str) { return str ? String(str).trim().replace(/\s+/g, ' ').toUpperCase() : ""; }
+
 function encontrarUnidad(v, vId) {
     if(!v) return null;
     if(v.wialonId && v.wialonId !== "EXTERNO" && unidadesGlobales[v.wialonId]) return unidadesGlobales[v.wialonId];
-    let n = String(v.unidadN || v.unidadFallback || "").trim().toUpperCase();
-    let norm = n.replace(/[\s\-]/g, "");
+    let n = String(v.unidadN || v.unidadFallback || "").trim().toUpperCase(); let norm = n.replace(/[\s\-]/g, "");
     for(let k in unidadesGlobales) {
         let uName = String(unidadesGlobales[k].name).trim().toUpperCase();
         if(uName === n || uName.replace(/[\s\-]/g, "") === norm) return unidadesGlobales[k];
     }
-    if(unidadesGlobales[vId]) return unidadesGlobales[vId];
-    return null; 
+    if(unidadesGlobales[vId]) return unidadesGlobales[vId]; return null; 
 }
 
 function isInsidePolygon(point, vs) {
@@ -127,43 +104,41 @@ function isInsidePolygon(point, vs) {
         let xi = vs[i].x, yi = vs[i].y, xj = vs[j].x, yj = vs[j].y;
         let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
         if (intersect) inside = !inside;
-    }
-    return inside;
+    } return inside;
 }
-
+    
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371000; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180;
     const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-
+    
 function resolverGeocerca(lat, lon) {
     if(!geocercasNativas || geocercasNativas.length === 0) return null;
     for(let z of geocercasNativas) {
         if(!z.p) continue;
         if(z.t === 3) { let r = z.p[0].r || 50; if(getDistanceMeters(lat, lon, z.p[0].y, z.p[0].x) <= r) return z.n; } 
         else { if(isInsidePolygon([lon, lat], z.p)) return z.n; }
-    }
-    return null;
+    } return null;
 }
 
 function formatearFechaElegante(ms) {
     if (!ms) return "--:--"; let d = new Date(ms); let meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
     return `${String(d.getDate()).padStart(2, '0')} ${meses[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
-
+    
 function formatTimeFriendly(unixSecs) { 
     if(!unixSecs) return "--:--"; let d = new Date(unixSecs * 1000); let today = new Date();
     let timeStr = d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
     if(d.toDateString() === today.toDateString()) return timeStr;
     return d.toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) + " " + timeStr; 
 }
-
+    
 function getLocalISO(unixMillis) {
     if(!unixMillis) return ""; let tzoffset = (new Date()).getTimezoneOffset() * 60000;
     return (new Date(unixMillis - tzoffset)).toISOString().slice(0, 16);
 }
-
+    
 function timeAgo(unixSecs) {
     if(!unixSecs) return "N/A"; let diff = Math.floor(Date.now()/1000) - unixSecs;
     if(diff < 60) return `${diff}s`; if(diff < 3600) return `${Math.floor(diff/60)}m`;
@@ -172,6 +147,7 @@ function timeAgo(unixSecs) {
     return `${d}d ${h}h`;
 }
 
+// --- MENÚ ORDENAMIENTO ---
 function inicializarMenuColumnas() {
     let menuHtml = '';
     colOrder.forEach((k, index) => {
@@ -191,25 +167,21 @@ function moverColumna(idx, dir) {
     if(idx + dir < 0 || idx + dir >= colOrder.length) return;
     let temp = colOrder[idx]; colOrder[idx] = colOrder[idx + dir]; colOrder[idx + dir] = temp;
     localStorage.setItem('tms_colOrder', JSON.stringify(colOrder));
-    inicializarMenuColumnas(); renderizarBitacora();
+    inicializarMenuColumnas(); solicitarRenderizado();
 }
 
 function toggleCol(colClass, isVisible, save = true) {
     if(save) { hiddenCols[colClass] = !isVisible; localStorage.setItem('tms_hiddenCols', JSON.stringify(hiddenCols)); }
     document.querySelectorAll('.' + colClass).forEach(el => { if(isVisible) el.classList.remove('d-none'); else el.classList.add('d-none'); });
 }
-
+    
 function resetColumnas() {
     localStorage.removeItem('tms_colOrder'); localStorage.removeItem('tms_hiddenCols'); localStorage.removeItem('tms_colWidths'); location.reload();
 }
 
 function aplicarAnchosGuardados() {
-    let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {};
-    let css = '';
-    Object.keys(columnasDef).forEach(c => {
-        let w = savedWidths[c] || columnasDef[c].ancho;
-        css += `.${c} { width: ${w}px !important; min-width: ${w}px !important; max-width: ${w}px !important; }\n`;
-    });
+    let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {}; let css = '';
+    Object.keys(columnasDef).forEach(c => { let w = savedWidths[c] || columnasDef[c].ancho; css += `.${c} { width: ${w}px !important; min-width: ${w}px !important; max-width: ${w}px !important; }\n`; });
     let styleEl = document.getElementById('dynamic-col-styles');
     if(!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'dynamic-col-styles'; document.head.appendChild(styleEl); }
     styleEl.innerHTML = css;
@@ -255,10 +227,10 @@ function getHeadersRow(cId) {
                     <div class="d-flex justify-content-center align-items-center h-100 px-1"><span class="text-center">${titulo}</span></div>
                     <div class="resizer" title="Arrastrar para cambiar tamaño"></div>
                 </th>`;
-    });
-    return html + `</tr>`;
+    }); return html + `</tr>`;
 }
 
+// --- MAPA FLUIDO Y MARCADORES CON POPUP ---
 function initMap() { 
     lmap = L.map('map').setView([23.6, -102.5], 5); 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(lmap); 
@@ -274,8 +246,11 @@ function toggleMap() {
 window.clickMapaUnidad = function(vId) {
     let v = viajesActivos[vId]; if(!v) return alert("Unidad no encontrada.");
     let uData = encontrarUnidad(v, vId);
-    if(uData && uData.pos && uData.pos.y) { centrarUnidadMapa(uData.pos.y, uData.pos.x, vId); } 
-    else { alert("Esta unidad no tiene coordenadas GPS válidas en este momento."); }
+    if(uData && uData.pos && typeof uData.pos.y !== 'undefined') {
+        centrarUnidadMapa(uData.pos.y, uData.pos.x, vId);
+    } else {
+        alert("Esta unidad no tiene coordenadas GPS válidas en este momento.");
+    }
 };
 
 function centrarUnidadMapa(lat, lon, vId) { 
@@ -283,23 +258,27 @@ function centrarUnidadMapa(lat, lon, vId) {
     setTimeout(() => { 
         if(lmap) {
             lmap.flyTo([lat, lon], 16, { animate: true, duration: 1.5 });
-            if(vId && mapaMarcadores[vId]) { setTimeout(() => { mapaMarcadores[vId].openPopup(); }, 1500); }
+            if(vId && mapaMarcadores[vId]) {
+                setTimeout(() => { mapaMarcadores[vId].openPopup(); }, 1500); 
+            }
         }
     }, 400); 
 }
 
 function actualizarMarcadoresMapa() {
     if(!lmap || !mapLayerGroup) return; 
-    mapLayerGroup.clearLayers(); mapaMarcadores = {}; 
+    mapLayerGroup.clearLayers();
+    mapaMarcadores = {}; 
     
     Object.keys(viajesActivos).forEach(vId => {
         let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return;
         let uData = encontrarUnidad(v, vId);
         
-        if(uData && uData.pos) {
+        if(uData && uData.pos && typeof uData.pos.y !== 'undefined') {
             let isMoving = uData.pos.s > 0;
             let colorIcon = isMoving ? '#10b981' : '#0284c7';
             let course = uData.pos.c || 0;
+            
             let rotation = course - 45;
             
             let markerHtml = isMoving 
@@ -310,16 +289,17 @@ function actualizarMarcadoresMapa() {
             
             let vel = uData.pos.s;
             let est = window.estatusData[v.estatus]?.nombre || "En Trayecto";
-            let operador = v.operador || (uData.choferObj && uData.choferObj.nombre !== "Sin asignar" ? uData.choferObj.nombre : "Sin Operador");
+            let operador = escapeSafe(v.operador || (uData.choferObj && uData.choferObj.nombre !== "Sin asignar" ? uData.choferObj.nombre : "Sin Operador"));
 
             let popupContent = `
                 <div style="text-align:center; min-width: 160px; font-family: 'Inter', sans-serif;">
-                    <b style="font-size:15px; color:#0f172a; text-transform:uppercase;">${uData.name}</b><br>
+                    <b style="font-size:15px; color:#0f172a; text-transform:uppercase;">${escapeSafe(uData.name)}</b><br>
                     <span style="font-size:11px; color:#64748b; font-weight:bold;">${operador}</span><br>
                     <div style="margin-top:5px; margin-bottom:5px; background:${isMoving?'#10b981':'#64748b'}; color:white; border-radius:4px; padding:2px; font-weight:bold; font-size:12px;">${vel} km/h</div>
                     <b style="font-size:11px; color:#0284c7;">${est}</b><br>
                     <span style="color:#94a3b8; font-size:10px;">Act: hace ${timeAgo(uData.pos.t)}</span>
-                </div>`;
+                </div>
+            `;
             let marker = L.marker([uData.pos.y, uData.pos.x], {icon: customIcon}).bindPopup(popupContent, {className: 'custom-popup'}).addTo(mapLayerGroup);
             mapaMarcadores[vId] = marker;
         }
@@ -335,13 +315,126 @@ function pintarGeocercasEnMapa() {
     });
 }
 
-function cambiarEstatus(val, vId) {
-    let txt = window.estatusData[val].nombre; 
-    registrarLog(vId, 'Cambió estatus a', txt); db.ref('viajes_activos/'+vId+'/estatus').set(val);
-}
+// --- HUBS DE NOTIFICACIONES ---
+db.ref('notificaciones_pendientes').on('value', snap => {
+    let data = snap.val() || {}; alertasSeguridad = {}; alertasLogistica = {};
+    Object.keys(data).forEach(k => { 
+        let notif = data[k]; notif.id = k; 
+        if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) alertasLogistica[k] = notif; 
+        else alertasSeguridad[k] = notif; 
+    });
+    actualizarBotonesHubs();
+});
 
-// WHATSAPP REPARADO (Punto 2)
-function enviarWA(vId) {
+window.enviarNotificacionPersistente = function(vId, unidadName, tipo, detalle) {
+    let idLogico = vId + "_" + tipo; 
+    db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { 
+        if(!snap.exists()) { 
+            db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); 
+        } 
+    });
+};
+
+window.actualizarBotonesHubs = function() {
+    let cSeg = Object.keys(alertasSeguridad).length; let cLog = Object.keys(alertasLogistica).length;
+    let bSeg = document.getElementById("btnHubSeguridad"); let lSeg = document.getElementById("lblCountSeguridad");
+    if(bSeg && lSeg) { 
+        if(cSeg>0) { lSeg.innerText=cSeg; bSeg.classList.remove("d-none"); } 
+        else { bSeg.classList.add("d-none"); try{ bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); }catch(e){} } 
+    }
+    let bLog = document.getElementById("btnHubLogistico"); let lLog = document.getElementById("lblCountLogistico");
+    if(bLog && lLog) { 
+        if(cLog>0) { lLog.innerText=cLog; bLog.classList.remove("d-none"); } 
+        else { bLog.classList.add("d-none"); try{ bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); }catch(e){} } 
+    }
+};
+
+window.abrirHubSeguridad = function() {
+    let container = document.getElementById("listaHubSeguridad"); container.innerHTML = "";
+    let count = Object.keys(alertasSeguridad).length; if (count === 0) return;
+    Object.values(alertasSeguridad).forEach(n => {
+        let icon = n.tipo === "PARADA" ? "fa-stop text-danger" : (n.tipo === "REANUDACION" ? "fa-play text-success" : "fa-triangle-exclamation text-warning");
+        container.innerHTML += `
+        <div class="bg-white p-3 rounded shadow-sm border border-danger mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${escapeSafe(n.unidad)}</div>
+                    <div class="text-muted" style="font-size:0.8rem;">${escapeSafe(n.detalle)} (Sensor: ${formatTimeFriendly(n.t_evento/1000)})</div>
+                </div>
+            </div>
+            <textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="2" placeholder="Justificación o anotación..."></textarea>
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', true)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button>
+                <button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', true)"><i class="fa-solid fa-check"></i> Confirmar y Guardar</button>
+            </div>
+        </div>`;
+    }); 
+    new bootstrap.Modal(document.getElementById('modalHubSeguridad')).show();
+};
+
+window.abrirHubLogistico = function() {
+    let container = document.getElementById("listaHubLogistico"); container.innerHTML = "";
+    let count = Object.keys(alertasLogistica).length; if (count === 0) return;
+    Object.values(alertasLogistica).forEach(n => {
+        let icon = n.tipo === "SALIDA" ? "fa-rocket text-primary" : (n.tipo === "ARRIBO" ? "fa-map-pin text-success" : "fa-flag-checkered text-dark"); 
+        let borderClass = n.tipo === "SALIDA" ? "border-primary" : (n.tipo === "ARRIBO" ? "border-success" : "border-dark");
+        container.innerHTML += `
+        <div class="bg-white p-3 rounded shadow-sm border ${borderClass} mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${escapeSafe(n.unidad)}</div>
+                    <div class="text-muted" style="font-size:0.8rem;">${escapeSafe(n.detalle)} (Sensor: ${formatTimeFriendly(n.t_evento/1000)})</div>
+                </div>
+            </div>
+            <textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="1" placeholder="Nota adicional (opcional)..."></textarea>
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', false)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button>
+                <button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', false)"><i class="fa-solid fa-check"></i> Confirmar Evento</button>
+            </div>
+        </div>`;
+    }); 
+    new bootstrap.Modal(document.getElementById('modalHubLogistico')).show();
+};
+
+window.confirmarNotificacion = function(id, isSeguridad) {
+    UI_PAUSED = false;
+    let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
+    let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : "";
+    if(isSeguridad && n.tipo === "PARADA" && !nota) return alert("⚠️ Escribe una justificación para la parada.");
+    let vId = n.vId; let detalleLog = `Sensor: ${formatTimeFriendly(n.t_evento/1000)}`; if (nota) detalleLog += ` | Nota: ${nota}`;
+    
+    if (n.tipo === "SALIDA") { db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); registrarLog(vId, 'Confirmó SALIDA', detalleLog); } 
+    else if (n.tipo === "ARRIBO") { db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); registrarLog(vId, 'Confirmó ARRIBO', detalleLog); } 
+    else if (n.tipo === "FINALIZACION") { db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); } 
+    else if (n.tipo === "PARADA") { db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: true }); registrarLog(vId, 'Justificó PARADA', detalleLog); } 
+    else if (n.tipo === "REANUDACION") { db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); registrarLog(vId, 'Confirmó REANUDACIÓN', detalleLog); } 
+    
+    db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("✅ Evento guardado."); 
+    if(isSeguridad) setTimeout(window.abrirHubSeguridad, 100); else setTimeout(window.abrirHubLogistico, 100);
+};
+
+window.rechazarNotificacion = function(id, isSeguridad) {
+    UI_PAUSED = false;
+    let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
+    let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : ""; 
+    let detalleLog = `Falsa Alarma`; if(nota) detalleLog += ` | Nota: ${nota}`;
+    
+    registrarLog(n.vId, `Rechazó alerta de ${n.tipo}`, detalleLog); 
+    db.ref('notificaciones_pendientes/' + id).remove(); 
+    mostrarNotificacion("🚫 Descartado."); 
+    
+    if(isSeguridad) setTimeout(window.abrirHubSeguridad, 100); else setTimeout(window.abrirHubLogistico, 100);
+};
+
+// --- ACCIONES SECUNDARIAS ---
+window.cambiarEstatus = function(val, vId) {
+    let txt = window.estatusData[val].nombre; 
+    registrarLog(vId, 'Cambió estatus a', txt); 
+    db.ref('viajes_activos/'+vId+'/estatus').set(val);
+};
+
+// WHATSAPP REPARADO (Google Maps Format Correcto)
+window.enviarWA = function(vId) {
     let v = viajesActivos[vId]; if(!v) return;
     let uData = encontrarUnidad(v, vId); let nombreCamion = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
     let estNombre = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0;
@@ -353,12 +446,14 @@ function enviarWA(vId) {
     
     let addrText = v.ubicacion_manual || "Buscando..."; let locLink = addrText; let geoTextWA = "";
 
-    if (pos && pos.y) {
+    if (pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined') {
         let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
         if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        locLink = `${addrText} \nhttps://maps.google.com/?q=20.123,-100.123${pos.y},${pos.x}`;
+        
+        // CORRECCIÓN LINK WA: http://maps.google.com/?q=lat,lon
+        locLink = `${addrText} \nhttp://maps.google.com/?q=${pos.y},${pos.x}`;
     }
     
     let arrDests = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
@@ -368,20 +463,22 @@ function enviarWA(vId) {
 
     let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n🛣️ *Ruta:* ${cOrigen} ➔ ${cDestino}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank'); 
-}
+};
 
-function generarReporteGrupal(cId, sId, titulo) {
+window.generarReporteGrupal = function(cId, sId, titulo) {
     if(!datosAgrupadosGlobal[cId] || !datosAgrupadosGlobal[cId][sId]) return;
     let arrViajes = datosAgrupadosGlobal[cId][sId];
     let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
+    
     arrViajes.forEach(({v, vId}) => {
         let uData = encontrarUnidad(v, vId); let name = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
         let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let vel = pos ? pos.s : 0;
         let addrText = v.ubicacion_manual || "Manual"; let locLink = addrText; let geoTextWA = "";
-        if (pos && pos.y) {
+        
+        if (pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined') {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
             if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-            locLink = `https://maps.google.com/?q=20.123,-100.123${pos.y},${pos.x}`;
+            locLink = `http://maps.google.com/?q=${pos.y},${pos.x}`;
         }
         
         let arrDests = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
@@ -391,21 +488,25 @@ function generarReporteGrupal(cId, sId, titulo) {
         
         txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${cOrigen} ➔ ${cDestino}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
     });
-    txt += `_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
-}
+    
+    txt += `_Reporte C4_`; 
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
+};
 
-// CAPTURA LIMPIA (Punto 3)
-async function generarCapturaCliente(cId, cliName) {
+// --- CAPTURA DE PANTALLA INTELIGENTE (RAYO BORRADOR) ---
+window.generarCapturaCliente = async function(cId, cliName) {
     let tableWrap = document.getElementById('scrollContainer');
     let allRows = document.querySelectorAll('#units-body tr');
     let hiddenRows = [];
     
     allRows.forEach(r => {
         if(!r.classList.contains(`client-group-${cId}`)) {
-            hiddenRows.push({el: r, display: r.style.display}); r.style.display = 'none';
+            hiddenRows.push({el: r, display: r.style.display}); 
+            r.style.display = 'none';
         }
     });
-    
+
+    // Ocultar columnas indeseadas para la foto
     let colsToHide = document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .col-historial');
     let originalDisplaysCols = [];
     colsToHide.forEach(el => { originalDisplaysCols.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
@@ -418,11 +519,13 @@ async function generarCapturaCliente(cId, cliName) {
     
     try {
         let canvas = await html2canvas(document.getElementById('mainTable'), { scale: 2, backgroundColor: '#f1f5f9', useCORS: true });
+        
         canvas.toBlob(function(blob) {
             currentCaptureBlob = blob;
             document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob);
             new bootstrap.Modal(document.getElementById('modalPreviewCaptura')).show();
         }, 'image/png');
+        
     } catch(e) { console.error(e); alert("Error al generar captura de pantalla."); } 
     finally {
         tableWrap.style.height = oldHeight; tableWrap.style.maxHeight = oldMaxHeight; tableWrap.style.overflow = oldOverflow;
@@ -430,26 +533,24 @@ async function generarCapturaCliente(cId, cliName) {
         hiddenRows.forEach(item => item.el.style.display = item.display);
         colsToHide.forEach((el, i) => el.style.display = originalDisplaysCols[i].disp);
     }
-}
+};
 
-function descargarCaptura() {
+window.descargarCaptura = function() {
     if(!currentCaptureBlob) return;
-    let link = document.createElement('a');
-    link.download = `Estatus_Bitacora.png`;
-    link.href = URL.createObjectURL(currentCaptureBlob);
-    link.click();
-}
+    let link = document.createElement('a'); link.download = `Estatus_Bitacora.png`;
+    link.href = URL.createObjectURL(currentCaptureBlob); link.click();
+};
 
-async function copiarCaptura() {
+window.copiarCaptura = async function() {
     if(!currentCaptureBlob) return;
     try {
         const item = new ClipboardItem({ "image/png": currentCaptureBlob });
         await navigator.clipboard.write([item]);
         alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp Web (Ctrl+V).");
     } catch (err) { alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); }
-}
+};
 
-async function compartirCaptura() {
+window.compartirCaptura = async function() {
     if(!currentCaptureBlob) return;
     if (navigator.share) {
         try {
@@ -457,23 +558,42 @@ async function compartirCaptura() {
             await navigator.share({ title: 'Estatus Bitácora', files: [file] });
         } catch (err) { console.log("Share cancelado"); }
     } else { alert("Tu navegador no soporta compartir directo."); }
-}
+};
 
-function editarUbicacionManual(vId) {
+window.editarUbicacionManual = function(vId) {
     let v = viajesActivos[vId]; if(!v) return;
     let uName = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
     let u = prompt(`Escribir ubicación manual para ${uName}:`, v.ubicacion_manual || '');
     if(u !== null) { db.ref(`viajes_activos/${vId}/ubicacion_manual`).set(String(u).toUpperCase()); registrarLog(vId, 'Añadió Ubicación Manual', String(u).toUpperCase()); }
-}
+};
 
-function registrarLog(viajeId, accion, detalle = "") { let usrName = currentUser ? currentUser.nom : "Sistema"; db.ref(`viajes_activos/${viajeId}/log`).push({ t: Date.now(), usr: usrName, act: accion, det: detalle }); }
+window.registrarLog = function(viajeId, accion, detalle = "") { 
+    let usrName = currentUser ? currentUser.nom : "Sistema"; 
+    db.ref(`viajes_activos/${viajeId}/log`).push({ t: Date.now(), usr: usrName, act: accion, det: detalle }); 
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================================
+// PARTE 2: ARRANQUE, LOGIN, WIALON API Y MOTOR DE INYECCIÓN GPS
+// ============================================================================
 
 window.onload = function () {
     aplicarAnchosGuardados();
     inicializarMenuColumnas();
     
-    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; actualizarListasAdmin(); renderizarBitacora(); });
-    db.ref('viajes_activos').on('value', s => { viajesActivos = s.val() || {}; renderizarBitacora(); if(mapVisible) actualizarMarcadoresMapa(); });
+    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; actualizarListasAdmin(); solicitarRenderizado(); });
+    db.ref('viajes_activos').on('value', s => { viajesActivos = s.val() || {}; solicitarRenderizado(); });
     db.ref('sistema/tokens').on('value', s => { let tks = s.val() || {}; configSistema.tokens = Object.values(tks); actualizarListaTokensAdmin(tks); if(currentUser && !motorArrancado) arranqueMotor(); });
     
     document.getElementById("logPass").addEventListener("keyup", e => e.key === "Enter" && autenticarUsuario());
@@ -481,7 +601,7 @@ window.onload = function () {
     setInterval(procesarFilaDirecciones, 1100); 
 };
 
-function autenticarUsuario(aU, aP) {
+window.autenticarUsuario = function(aU, aP) {
     const u = aU || document.getElementById("logUser").value.trim(); const p = aP || document.getElementById("logPass").value.trim(); if(!u || !p) return;
     document.getElementById("status").innerText = "Conectando..."; document.getElementById("status").className = "mt-3 small fw-bold text-primary";
     
@@ -495,7 +615,7 @@ function autenticarUsuario(aU, aP) {
             if(!motorArrancado) arranqueMotor();
         } else { document.getElementById("status").innerText = "Credenciales Incorrectas"; document.getElementById("status").className = "mt-3 small fw-bold text-danger"; }
     }).catch(err => { document.getElementById("status").innerText = "Error de red."; document.getElementById("status").className = "mt-3 small fw-bold text-danger"; });
-}
+};
 
 function peticionWialon(url, svc, params, sid=null) {
     return new Promise(resolve => {
@@ -507,7 +627,12 @@ function peticionWialon(url, svc, params, sid=null) {
     });
 }
 
-async function arranqueMotor() { if(pollingInterval) clearInterval(pollingInterval); motorArrancado = true; await sincronizarFlotas(); pollingInterval = setInterval(sincronizarFlotas, 20000); }
+window.arranqueMotor = async function() { 
+    if(pollingInterval) clearInterval(pollingInterval); 
+    motorArrancado = true; 
+    await sincronizarFlotas(); 
+    pollingInterval = setInterval(sincronizarFlotas, 20000); 
+};
 
 function renderStatusTokens() {
     const lista = document.getElementById("listaStatusTokens"); let html = "";
@@ -515,7 +640,7 @@ function renderStatusTokens() {
     lista.innerHTML = html || '<li class="list-group-item text-center">No hay tokens</li>';
 }
 
-async function sincronizarFlotas() {
+window.sincronizarFlotas = async function() {
     if(isSyncingFlotas) return; isSyncingFlotas = true;
     try {
         let indMenu = document.getElementById("menuSyncIndicator"); if(indMenu) indMenu.innerHTML = `<i class="fa-solid fa-satellite-dish text-warning"></i> Sincronizando...`;
@@ -585,7 +710,7 @@ async function sincronizarFlotas() {
         renderStatusTokens(); inyectarGPSenTabla(); 
         if(mapVisible) { actualizarMarcadoresMapa(); pintarGeocercasEnMapa(); }
     } catch(errSync) { console.error("Error Global:", errSync); } finally { isSyncingFlotas = false; }
-}
+};
 
 function inyectarGPSenTabla() {
     Object.keys(viajesActivos).forEach(vId => {
@@ -594,11 +719,12 @@ function inyectarGPSenTabla() {
             let uData = encontrarUnidad(v, vId); let isExternal = v.wialonId === "EXTERNO"; 
             let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0; 
             
+            // LA CLAVE ANTI-CRASH (Sombra de Señal)
             let hasCoords = pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined';
             let isLost = !uData || (!hasCoords && !isExternal);
             
             let ageSecs = pos && pos.t ? Math.floor(Date.now()/1000) - pos.t : 0;
-            let isStale = ageSecs > 14400; 
+            let isStale = ageSecs > 14400; // 4 Horas sin datos de Wialon
             
             let row = document.getElementById("row_" + vId);
             if(row) {
@@ -609,7 +735,7 @@ function inyectarGPSenTabla() {
 
             let safeName = uData ? uData.name : "Desconocida";
 
-            // LOGICA HUBS (PARADAS)
+            // LOGICA HUBS (PARADAS AUTOMÁTICAS)
             if(!isExternal && !isLost && !isStale) {
                 if(v.t_salida && !v.t_arribo) {
                     if(speed < 4) {
@@ -659,7 +785,7 @@ function inyectarGPSenTabla() {
                                 </div>
                             </div>
                             <div class="d-flex align-items-center w-100">
-                                <a href="https://maps.google.com/?q=20.123,-100.123${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
+                                <a href="https://maps.google.com/?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
                                     <div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div>
                                 </a>
                             </div>
@@ -719,163 +845,19 @@ function procesarFilaDirecciones() {
     }).catch(e => console.log("Geo Err")).finally(() => { isGeocoding = false; });
 }
 
-function renderizarBitacora() {
-    if (UI_PAUSED) return; 
-    
-    const tbody = document.getElementById('units-body'); let html = "";
-    let tree = { "Sin_Cliente": { "N/A": [] } };
-    
-    Object.keys(dataClientes).forEach(cId => { tree[cId] = { "N/A": [] }; if(dataClientes[cId].subclientes) Object.keys(dataClientes[cId].subclientes).forEach(sId => tree[cId][sId] = []); });
-    Object.keys(viajesActivos).forEach(vId => { 
-        let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; 
-        let cId = String(v.cliente || "Sin_Cliente"); let sId = String(v.subcliente || "N/A"); 
-        if(!tree[cId]) tree[cId] = { "N/A": [] }; if(!tree[cId][sId]) tree[cId][sId] = []; 
-        tree[cId][sId].push({vId, v}); 
-    });
-    datosAgrupadosGlobal = tree; 
 
-    for(let cId in tree) {
-        let cliName = "SIN CLIENTE"; if (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].nombre) cliName = dataClientes[cId].nombre;
-        
-        let hasClientUnits = false;
-        for(let sId in tree[cId]) { if(tree[cId][sId].length > 0) { hasClientUnits = true; break; } }
-        if(!hasClientUnits) continue;
 
-        let logoHtml = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo" title="${cliName}">` : `<span class="align-middle text-uppercase">${cliName}</span>`;
-        
-        let clientActions = cId !== "Sin_Cliente" ? `
-            <div class="dropdown position-absolute end-0 me-3">
-                <button class="btn btn-sm text-white" type="button" data-bs-toggle="dropdown" title="Acciones de Cliente"><i class="fa-solid fa-ellipsis-vertical fs-5"></i></button>
-                <ul class="dropdown-menu shadow-lg border-0 rounded-3">
-                    <li><a class="dropdown-item fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${cliName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura Estatus</a></li>
-                    <li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', 'N/A', '${cliName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte WhatsApp</a></li>
-                </ul>
-            </div>` : '';
-        
-        let clientTitleHtml = `
-            <div class="d-flex align-items-center justify-content-center w-100 position-relative">
-                ${logoHtml}
-                ${clientActions}
-            </div>
-        `;
-        
-        html += `<tr class="header-cliente shadow-sm client-group-${cId}" data-client="${cId}"><td colspan="${colOrder.length}">${clientTitleHtml}</td></tr>`;
 
-        for(let sId in tree[cId]) {
-            if(tree[cId][sId].length === 0) continue;
-            let subName = ""; if (sId !== "N/A" && dataClientes[cId] && dataClientes[cId].subclientes && dataClientes[cId].subclientes[sId]) subName = dataClientes[cId].subclientes[sId].nombre || "";
-            
-            let logoHtmlSub = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo-sub" title="${cliName}">` : '';
-            
-            let subclientActions = sId !== "N/A" ? `
-                <div class="dropdown position-absolute end-0 me-3">
-                    <button class="btn btn-sm text-dark" type="button" data-bs-toggle="dropdown"><i class="fa-solid fa-ellipsis-vertical fs-6"></i></button>
-                    <ul class="dropdown-menu shadow-lg border-0 rounded-3">
-                        <li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', '${sId}', '${cliName} -> ${subName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte Subcliente</a></li>
-                    </ul>
-                </div>` : '';
-            
-            if(sId !== "N/A" && subName !== "") {
-                html += `<tr class="header-subcliente client-group-${cId}"><td colspan="${colOrder.length}">
-                    <div class="d-flex justify-content-center align-items-center position-relative w-100">
-                        <div class="d-flex align-items-center text-uppercase">↳ ${logoHtmlSub} SUBCLIENTE: ${subName}</div>
-                        ${subclientActions}
-                    </div>
-                </td></tr>`;
-            }
-            
-            html += getHeadersRow(cId);
 
-            tree[cId][sId].sort((a, b) => { let estA = String(a.v.estatus || ""); let estB = String(b.v.estatus || ""); return estA.localeCompare(estB); });
 
-            tree[cId][sId].forEach(({vId, v}) => {
-                try {
-                    let nombreCamion = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
-                    let isExternal = v.wialonId === "EXTERNO"; 
-                    
-                    let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
-                    let optionsHtml = `
-                    <div class="dropdown w-100">
-                        <button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            ${curEst.nombre}
-                        </button>
-                        <ul class="dropdown-menu shadow-lg border-0 rounded-3 dropdown-menu-custom">
-                            ${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item dropdown-item-custom fw-bold cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}
-                        </ul>
-                    </div>`;
 
-                    let arrDests = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
-                    let totDests = arrDests.length || 1;
-                    let cIdx = v.destino_idx || 0;
-                    let cOrigen = v.origen_actual || v.origen || "";
-                    let cDestino = arrDests[cIdx] || v.destino || "";
 
-                    let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
 
-                    let overrideFin = null;
-                    if (cIdx < totDests - 1 && !v.t_fin) overrideFin = `avanzarMultiDestino('${vId}')`;
 
-                    let isTransit = v.is_transit && cIdx > 0;
-                    let btnSalida = construirBotonHorario(vId, v.t_salida, 't_salida', 'SALIDA', 'success', isTransit);
-                    let btnArribo = v.t_salida ? construirBotonHorario(vId, v.t_arribo, 't_arribo', 'ARRIBO', 'primary') : '';
-                    let btnFin = v.t_arribo ? construirBotonHorario(vId, v.t_fin, 't_fin', 'FINALIZADO', 'dark', false, overrideFin) : '';
 
-                    let mapClick = `clickMapaUnidad('${vId}')`;
 
-                    let tds = {};
-                    tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex align-items-center justify-content-center"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${nombreCamion}</span></div></td>`;
-                    tds['col-operador'] = `<td class="col-operador align-middle ${hiddenCols['col-operador'] ? 'd-none' : ''}"><div id="op_wialon_${vId}"><span class="badge bg-secondary w-100 mt-1" style="font-size:0.6rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</span></div></td>`;
-                    
-                    tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}">
-                        <div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje' en menú derecho">
-                            <div class="d-flex align-items-center justify-content-center gap-1 w-100">
-                                <input class="input-ghost text-center flex-grow-1 w-50" value="${cOrigen}" placeholder="ORIGEN" readonly style="cursor:default;">
-                                <i class="fa-solid fa-play" style="color:var(--grudicom-blue); font-size:0.65rem;"></i>
-                                <input class="input-ghost text-center flex-grow-1 w-50" value="${cDestino}" placeholder="DESTINO" readonly style="cursor:default;">
-                            </div>
-                            ${notaDests}
-                        </div>
-                    </td>`;
-                    
-                    tds['col-contenedores'] = `<td class="col-contenedores align-middle ${hiddenCols['col-contenedores'] ? 'd-none' : ''}"><textarea class="input-ghost text-start" style="resize:none; min-height:40px;" placeholder="CONTENEDORES" onblur="db.ref('viajes_activos/${vId}/contenedores').set(this.value.toUpperCase())">${v.contenedores||''}</textarea></td>`;
-                    tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${btnSalida}${btnArribo}${btnFin}</div></td>`;
-                    tds['col-estatus'] = `<td class="col-estatus align-middle ${hiddenCols['col-estatus'] ? 'd-none' : ''}" style="overflow: visible !important;">${optionsHtml}</td>`;
-                    tds['col-gps'] = `<td class="col-gps align-middle ${hiddenCols['col-gps'] ? 'd-none' : ''}" id="gps_cell_${vId}"><div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><span id="icon_${vId}"><i class="fa-solid fa-spinner fa-spin text-muted me-1 fs-6"></i></span><span id="speed_${vId}"><span class="speed-badge bg-secondary m-0">-- km/h</span></span></div><div id="time_${vId}" style="font-size:0.65rem; color:#64748b; font-weight:800;">--</div></div><div class="w-100 text-center" id="addr_control_${vId}"><div style="font-size:0.75rem; color:#64748b; font-weight:800;">Sincronizando...</div></div></div></td>`;
-                    tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+v.alerta.txt+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
-                    
-                    let logsObj = v.log || {}; let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t);
-                    let lastLog = logsArr.length > 0 ? `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center"><div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${nombreCamion}')"></i></div><div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;"><b class="text-primary">${String(logsArr[0].usr)}:</b> <span class="text-dark fw-bold">${String(logsArr[0].act)}</span><div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${String(logsArr[0].det||'')}">${String(logsArr[0].det||'')}</div></div></div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
-                    tds['col-historial'] = `<td class="col-historial align-middle ${hiddenCols['col-historial'] ? 'd-none' : ''}">${lastLog}</td>`;
-                    
-                    tds['col-accion'] = `<td class="col-accion align-middle ${hiddenCols['col-accion'] ? 'd-none' : ''}" style="overflow: visible !important;">
-                        <div class="d-flex align-items-center justify-content-center h-100">
-                            <div class="dropdown">
-                                <button class="btn-dots cp bg-transparent border-0" type="button" data-bs-toggle="dropdown" title="Más Opciones"><i class="fa-solid fa-ellipsis-vertical fs-5 text-muted"></i></button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 dropdown-menu-custom">
-                                    <li><a class="dropdown-item dropdown-item-custom text-success cp" onclick="enviarWA('${vId}')"><i class="fa-brands fa-whatsapp me-2 fs-5 align-middle"></i> Enviar WhatsApp</a></li>
-                                    <li><a class="dropdown-item dropdown-item-custom text-primary cp" onclick="abrirEdicionViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-pencil me-2 fs-5 align-middle"></i> Editar Viaje</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item dropdown-item-custom text-danger cp" onclick="finalizarViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-trash me-2 fs-5 align-middle"></i> Archivar Viaje</a></li>
-                                </ul>
-                            </div>
-                        </div>
-                    </td>`;
 
-                    let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {};
-                    let trInner = colOrder.map(c => {
-                        let ancho = savedWidths[c] || columnasDef[c].ancho;
-                        return tds[c].replace('class="', `style="width:${ancho}px; min-width:${ancho}px; max-width:${ancho}px;" class="`);
-                    }).join('');
-                    
-                    let trClass = isExternal ? 'external-connection-row data-row' : 'needs-gps-update data-row';
-                    let searchData = `${nombreCamion} ${v.origen||''} ${v.destino||''} ${v.contenedores||''} ${v.operador||''} ${cliName} ${subName} ${window.estatusData[v.estatus]?.nombre||''}`.toLowerCase();
-                    
-                    html += `<tr class="${trClass} client-group-${cId}" id="row_${vId}" data-search="${searchData}">${trInner}</tr>`;
 
-                } catch(err) { console.error("Fila omitida por error:", vId, err); }
-            });
-        }
-    }
-    tbody.innerHTML = html || `<tr><td colspan="${colOrder.length}" class="p-5 text-muted fs-6 text-center"><i class="fa-solid fa-folder-open mb-2 fs-3 text-primary"></i><br>Aún no hay viajes activos en la bitácora.</td></tr>`;
-    filtrarTablaInteligente();
-}
+
+
+
