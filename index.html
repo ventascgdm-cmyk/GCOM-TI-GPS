@@ -4,15 +4,24 @@
     <meta charset="utf-8" />
     <title>GRUDICOM TI & GPS | C4 - OPERATIVO MASTER</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
+    
     <link rel="stylesheet" href="styles.css">
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
 </head>
 <body>
 
@@ -23,7 +32,7 @@
         <input type="text" id="logUser" class="form-control mb-3 text-center bg-light border-0" placeholder="Usuario">
         <input type="password" id="logPass" class="form-control mb-4 text-center bg-light border-0" placeholder="Contraseña">
         <button onclick="autenticarUsuario()" class="btn w-100 fw-bold py-2 shadow-sm rounded-pill text-white" style="background: var(--grudicom-blue);"><i class="fa-solid fa-right-to-bracket"></i> INGRESAR</button>
-        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master (v4.0 Enterprise)</div>
+        <div id="status" class="mt-3 small fw-bold text-secondary">Motor C4 Master (v4.5 Enterprise)</div>
     </div>
 </div>
 
@@ -105,9 +114,7 @@
                 <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-shield-halved me-2"></i> HUB DE SEGURIDAD (Paradas y Conexión)</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body bg-light p-3">
-                <div id="listaHubSeguridad" class="d-flex flex-column gap-2"></div>
-            </div>
+            <div class="modal-body bg-light p-3"><div id="listaHubSeguridad" class="d-flex flex-column gap-2"></div></div>
         </div>
     </div>
 </div>
@@ -119,28 +126,36 @@
                 <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-box-open me-2"></i> HUB LOGÍSTICO (Rutas y Arribos)</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body bg-light p-3">
-                <div id="listaHubLogistico" class="d-flex flex-column gap-2"></div>
+            <div class="modal-body bg-light p-3"><div id="listaHubLogistico" class="d-flex flex-column gap-2"></div></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditHora" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-primary text-white border-0 py-2">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-clock"></i> MODIFICAR <span id="eh_title"></span></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light text-center rounded-bottom-4">
+                <input type="hidden" id="eh_vId">
+                <input type="hidden" id="eh_field">
+                <input type="hidden" id="eh_txtVacio">
+                <label class="fw-bold text-secondary mb-2" style="font-size:0.75rem;">Selecciona la fecha y hora correcta:</label>
+                
+                <input type="text" id="eh_input" class="form-control form-control-lg fw-bold text-center border-primary shadow-sm mb-3 bg-white" style="font-size:0.9rem; cursor:pointer;" placeholder="Clic para abrir calendario">
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger w-50 fw-bold rounded-pill shadow-sm" onclick="borrarHorarioModal()" title="Eliminar este horario"><i class="fa-solid fa-trash me-1"></i> Borrar</button>
+                    <button class="btn btn-success w-50 fw-bold rounded-pill shadow-sm" onclick="guardarHorarioModal()"><i class="fa-solid fa-check me-1"></i> Guardar</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="modalArchivarMasivo" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content border-0 shadow-lg rounded-4">
-            <div class="modal-header bg-dark text-white border-0 py-3">
-                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-broom me-2"></i> LIMPIAR BITÁCORA</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body bg-light p-3 text-center">
-                <p class="text-muted fw-bold" style="font-size:0.8rem;">Archivar todos los viajes con estatus "8. Finalizado" de:</p>
-                <select id="selClienteArchivar" class="form-select form-select-sm border-primary fw-bold text-uppercase mb-3"></select>
-                <button class="btn btn-danger w-100 fw-bold rounded-pill shadow-sm" onclick="ejecutarArchivadoMasivo()"><i class="fa-solid fa-trash-can me-1"></i> ARCHIVAR SELECCIÓN</button>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="modal fade" id="modalArchivarMasivo" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-dark text-white border-0 py-3"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-broom me-2"></i> LIMPIAR BITÁCORA</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-3 text-center"><p class="text-muted fw-bold" style="font-size:0.8rem;">Archivar todos los viajes con estatus "8. Finalizado" de:</p><select id="selClienteArchivar" class="form-select form-select-sm border-primary fw-bold text-uppercase mb-3"></select><button class="btn btn-danger w-100 fw-bold rounded-pill shadow-sm" onclick="ejecutarArchivadoMasivo()"><i class="fa-solid fa-trash-can me-1"></i> ARCHIVAR SELECCIÓN</button></div></div></div></div>
 
 <div class="modal fade" id="modalPreviewCaptura" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-primary text-white border-0 py-3"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-camera-retro me-2"></i> CAPTURA GENERADA</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-3 text-center"><div style="max-height: 400px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; margin-bottom: 15px;"><img id="imgPreviewCaptura" src="" style="max-width: 100%; height: auto;"></div><div class="d-flex justify-content-center gap-3 flex-wrap"><button class="btn btn-primary fw-bold shadow-sm px-4" onclick="descargarCaptura()"><i class="fa-solid fa-download me-2"></i> Descargar</button><button class="btn btn-dark fw-bold shadow-sm px-4" onclick="copiarCaptura()"><i class="fa-solid fa-copy me-2"></i> Copiar Imagen</button></div></div></div></div></div>
 
@@ -148,7 +163,7 @@
 
 <div class="modal fade" id="modalEditarViaje" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header text-white border-0 py-3" style="background: var(--grudicom-blue);"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-pencil me-2"></i> EDITAR VIAJE: <span id="edU_name" class="text-info"></span></h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light rounded-bottom-4 p-4"><div class="bg-white p-3 rounded-4 shadow-sm border"><input type="hidden" id="edU_id"><div class="row mb-3"><div class="col-6"><label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cambiar Cliente:</label><select id="ed_cliente" class="form-select form-select-sm bg-light fw-bold text-uppercase" onchange="cargarSubclientesEdicion()"></select></div><div class="col-6"><label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cambiar Subcliente:</label><select id="ed_subcliente" class="form-select form-select-sm bg-light fw-bold text-uppercase"></select></div></div><div class="row mb-3"><div class="col-12 mb-2"><label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Origen (Inicial):</label><input type="text" id="ed_origen" class="form-control form-control-sm bg-light text-uppercase" list="listaGeocercas"></div><div class="col-12 mb-2"><label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Destino(s): <span class="text-muted fw-normal" style="font-size:0.65rem;">(Presiona Enter)</span></label><div class="chips-container" id="ed_chips_box" onclick="document.getElementById('ed_destino_input').focus()"><input type="text" id="ed_destino_input" list="listaGeocercas" placeholder="Escribe destino y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_box', edChipsArray)"></div></div><div class="col-8"><label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Contenedores / Cajas:</label><div class="chips-container" id="ed_chips_cont_box" onclick="document.getElementById('ed_cont_input').focus()"><input type="text" id="ed_cont_input" placeholder="Escribe contenedor..." onkeydown="manejarChipInput(event, 'ed_chips_cont_box', edChipsContArray)"></div></div><div class="col-4"><label class="fw-bold text-info mb-1" style="font-size:0.75rem;"><i class="fa-regular fa-calendar-check"></i> Fecha/Hora Prog.:</label><input type="datetime-local" id="ed_t_programada" class="form-control form-control-sm border-info bg-light"></div></div><div class="row mb-3"><div class="col-12" id="ed_operador_wialon_wrapper"><label class="fw-bold text-primary mb-1" style="font-size:0.75rem;"><i class="fa-solid fa-id-badge"></i> Asignar Operador (Solo desde Wialon):</label><select id="ed_operador_wialon" class="form-select form-select-sm bg-light text-uppercase border-primary fw-bold"></select></div><div class="col-12" id="ed_operador_manual_wrapper" style="display:none;"><label class="fw-bold text-info mb-1" style="font-size:0.75rem;"><i class="fa-solid fa-id-badge"></i> Operador Externo (Manual):</label><input type="text" id="ed_operador" class="form-control form-control-sm bg-light text-uppercase border-info"></div></div><button onclick="guardarEdicionViaje()" class="btn btn-success w-100 fw-bold py-2 rounded-pill shadow-sm"><i class="fa-solid fa-floppy-disk me-1"></i> GUARDAR CAMBIOS Y LIGAR</button></div></div></div></div></div>
 
-<div class="modal fade" id="modalLog" tabindex="-1"><div class="modal-dialog"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-dark text-white border-0 py-2"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-list-ul"></i> HISTORIAL: <span id="log_uName"></span></h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-3 bg-light rounded-bottom-4"><div id="log_container" class="mb-3 bg-white border border-light rounded-4 p-2 shadow-sm" style="height:200px; overflow-y:auto; font-size:0.75rem;"></div><input type="hidden" id="log_uid"><div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden"><input type="text" id="log_txt" class="form-control border-0 text-uppercase bg-white px-3" placeholder="Escribe nota o justificación..."><button class="btn btn-primary fw-bold px-3" onclick="guardarLogManual()"><i class="fa-solid fa-paper-plane"></i></button></div></div></div></div></div>
+<div class="modal fade" id="modalLog" tabindex="-1"><div class="modal-dialog"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-dark text-white border-0 py-2"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-list-ul"></i> HISTORIAL: <span id="log_uName"></span></h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-3 bg-light rounded-bottom-4"><div id="log_container" class="mb-3 bg-white border border-light rounded-4 p-2 shadow-sm" style="height:200px; overflow-y:auto; font-size:0.75rem;"></div><input type="hidden" id="log_uid"><input type="hidden" id="log_alertId"><div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden"><input type="text" id="log_txt" class="form-control border-0 text-uppercase bg-white px-3" placeholder="Escribe nota o justificación..."><button class="btn btn-primary fw-bold px-3" onclick="guardarLogManual()"><i class="fa-solid fa-paper-plane"></i></button></div></div></div></div></div>
 
 <div class="modal fade" id="modalStatusTokens" tabindex="-1"><div class="modal-dialog"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-warning text-dark border-0 py-2"><h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-satellite-dish"></i> ESTATUS GPS</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-0"><ul class="list-group list-group-flush rounded-bottom-4" id="listaStatusTokens"></ul></div></div></div></div>
 <div class="modal fade" id="modalAdmin" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content border-0 shadow-lg rounded-4"><div class="modal-header bg-danger text-white border-0 py-2"><h6 class="modal-title fw-bold m-0">ADMINISTRACIÓN MAESTRA</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light rounded-bottom-4 p-3"><div class="row g-2"><div class="col-lg-2 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Tokens GPS</h6><input type="text" id="tk_nom" class="form-control form-control-sm mb-1 bg-light" placeholder="Ej. RACEL"><input type="text" id="tk_url" class="form-control form-control-sm mb-1 bg-light" value="https://hst-api.wialon.com"><input type="text" id="tk_val" class="form-control form-control-sm mb-1 bg-light" placeholder="Token Largo"><button class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0" onclick="agregarToken()">Guardar</button><ul class="list-group list-group-sm mt-2" id="listaTokensActivos" style="font-size:0.7rem;"></ul></div></div><div class="col-lg-3 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Operadores Manuales</h6><input class="form-control form-control-sm mb-1 bg-light" list="listaUnidadesTotales" id="op_unidad" placeholder="Unidad" autocomplete="off"><input type="text" id="op_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Nombre Chófer"><button onclick="vincularOperador()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Vincular</button><ul class="list-group list-group-sm mt-2" id="listaOperadoresAdmin" style="font-size:0.7rem;"></ul></div></div><div class="col-lg-2 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Clientes</h6><input type="text" id="cli_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Empresa"><input type="file" id="cli_logo_file" accept="image/*" class="form-control form-control-sm mb-1 bg-light" title="Seleccionar Logo" style="font-size:0.6rem;"><button onclick="crearCliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button><ul class="list-group list-group-sm mt-2" id="listaClientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul></div></div><div class="col-lg-2 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Subclientes</h6><select id="sub_clientePadre" class="form-select form-select-sm mb-1 bg-light"></select><input type="text" id="sub_nombre" class="form-control form-control-sm mb-1 bg-light" placeholder="Sub-empresa"><button onclick="crearSubcliente()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Añadir</button><ul class="list-group list-group-sm mt-2" id="listaSubclientesAdmin" style="max-height: 200px; overflow-y:auto; font-size:0.7rem;"></ul></div></div><div class="col-lg-3 col-md-4"><div class="bg-white p-2 rounded-3 shadow-sm h-100"><h6 class="fw-bold text-primary border-bottom pb-1" style="font-size:0.8rem;">Monitoristas</h6><input type="text" id="usr_id" class="form-control form-control-sm mb-1 bg-light" placeholder="Usuario (login)"><input type="text" id="usr_nom" class="form-control form-control-sm mb-1 bg-light" placeholder="Nombre completo"><input type="text" id="usr_pass" class="form-control form-control-sm mb-1 bg-light" placeholder="Contraseña"><button onclick="crearUsuario()" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill py-0">Crear</button><ul class="list-group list-group-sm mt-2" id="listaUsuariosAdmin" style="font-size:0.7rem;"></ul></div></div></div></div></div></div></div>
