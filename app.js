@@ -528,6 +528,24 @@ function enviarNotificacionPersistente(vId, unidadName, tipo, detalle) {
     });
 }
 
+// --- LIMPIEZA FORZADA DE PANTALLA GRIS (BUG FIX) ---
+window.cerrarModalLimpio = function(modalId) {
+    let el = document.getElementById(modalId);
+    if(el) {
+        let m = bootstrap.Modal.getInstance(el);
+        if(m) m.hide();
+    }
+    // Forzamos al navegador a borrar cualquier fondo gris que se haya quedado atascado
+    setTimeout(() => {
+        if (!document.querySelector('.modal.show')) {
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+    }, 300);
+};
+
 function actualizarBotonesHubs() {
     let cSeg = Object.keys(alertasSeguridad).length; 
     let cLog = Object.keys(alertasLogistica).length;
@@ -540,7 +558,7 @@ function actualizarBotonesHubs() {
             bSeg.classList.remove("d-none"); 
         } else { 
             bSeg.classList.add("d-none"); 
-            try { bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); } catch(e){} 
+            cerrarModalLimpio('modalHubSeguridad'); 
         } 
     }
     
@@ -552,16 +570,19 @@ function actualizarBotonesHubs() {
             bLog.classList.remove("d-none"); 
         } else { 
             bLog.classList.add("d-none"); 
-            try { bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); } catch(e){} 
+            cerrarModalLimpio('modalHubLogistico'); 
         } 
     }
 }
 
-function abrirHubSeguridad() {
+window.abrirHubSeguridad = function() {
     let container = document.getElementById("listaHubSeguridad"); 
     container.innerHTML = "";
     let count = Object.keys(alertasSeguridad).length; 
-    if (count === 0) return;
+    if (count === 0) {
+        cerrarModalLimpio('modalHubSeguridad');
+        return;
+    }
     
     Object.values(alertasSeguridad).forEach(n => {
         let icon = n.tipo === "PARADA" ? "fa-stop text-danger" : (n.tipo === "REANUDACION" ? "fa-play text-success" : "fa-triangle-exclamation text-warning");
@@ -582,14 +603,20 @@ function abrirHubSeguridad() {
             </div>
         </div>`;
     }); 
-    new bootstrap.Modal(document.getElementById('modalHubSeguridad')).show();
-}
+    
+    let modalEl = document.getElementById('modalHubSeguridad');
+    let modalInst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modalInst.show();
+};
 
-function abrirHubLogistico() {
+window.abrirHubLogistico = function() {
     let container = document.getElementById("listaHubLogistico"); 
     container.innerHTML = "";
     let count = Object.keys(alertasLogistica).length; 
-    if (count === 0) return;
+    if (count === 0) {
+        cerrarModalLimpio('modalHubLogistico');
+        return;
+    }
     
     Object.values(alertasLogistica).forEach(n => {
         let icon = n.tipo === "SALIDA" ? "fa-rocket text-primary" : (n.tipo === "ARRIBO" ? "fa-map-pin text-success" : "fa-flag-checkered text-dark"); 
@@ -610,8 +637,11 @@ function abrirHubLogistico() {
             </div>
         </div>`;
     }); 
-    new bootstrap.Modal(document.getElementById('modalHubLogistico')).show();
-}
+    
+    let modalEl = document.getElementById('modalHubLogistico');
+    let modalInst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modalInst.show();
+};
 
 function confirmarNotificacion(id, isSeguridad) {
     UI_PAUSED = false;
@@ -638,7 +668,6 @@ function confirmarNotificacion(id, isSeguridad) {
     let finalAct = nota ? `🗣️ ${nota}` : defaultAct;
     let finalDet = nota ? `${defaultAct} (Auto: ${n.detalle})` : `${n.detalle}`;
     
-    // MAGIA AQUÍ: Agregamos estatus: 's1' a la SALIDA
     if (n.tipo === "SALIDA") db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento, estatus: 's1' }); 
     else if (n.tipo === "ARRIBO") db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); 
     else if (n.tipo === "FINALIZACION") db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); 
@@ -662,7 +691,6 @@ function rechazarNotificacion(id, isSeguridad) {
     let inputEl = document.getElementById('nota_hub_' + id); 
     let nota = inputEl ? inputEl.value.trim() : ""; 
     
-    // MAGIA AQUÍ TAMBIÉN
     let finalAct = nota ? `🗣️ ${nota}` : `Canceló Alerta`;
     let finalDet = nota ? `Descartó alerta de ${n.tipo}` : `Falsa alarma de ${n.tipo}`;
     
@@ -678,41 +706,56 @@ function rechazarNotificacion(id, isSeguridad) {
     else setTimeout(abrirHubLogistico, 100);
 }
 
-// --- NUEVA FUNCIÓN: HISTORIAL GLOBAL DE HUBS ---
 window.abrirHistorialHubs = function() {
     let container = document.getElementById("listaHistorialGlobal");
     container.innerHTML = '<div class="text-center p-4"><i class="fa-solid fa-spinner fa-spin fs-3 text-secondary"></i> Buscando registros...</div>';
 
-    // Ocultar los otros modales para que no se encimen
-    try { bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); } catch(e){}
-    try { bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); } catch(e){}
+    // Ocultar los otros modales sin trabar la pantalla
+    cerrarModalLimpio('modalHubSeguridad');
+    cerrarModalLimpio('modalHubLogistico');
 
-    // Recopilar y unificar los logs de todos los viajes activos
     let allLogs = [];
     Object.values(viajesActivos).forEach(v => {
         let uName = limpiarStr(v.unidadN || v.unidadFallback);
         if (v.log) {
             Object.values(v.log).forEach(l => {
-                // Filtramos solo las acciones que hizo el monitorista en los Hubs
-                if (l.act.includes("Confirmó") || l.act.includes("Justificó") || l.act.includes("Canceló") || l.act.includes("Descartó")) {
+                if (l.act.includes("Confirmó") || l.act.includes("Justificó") || l.act.includes("Canceló") || l.act.includes("Descartó") || l.act.includes("🗣️")) {
                     allLogs.push({ ...l, unidad: uName });
                 }
             });
         }
     });
 
-    // Ordenar del más reciente al más antiguo
     allLogs.sort((a, b) => b.t - a.t);
-
-    // Tomar los últimos 100 movimientos para que sea rápido
     let topLogs = allLogs.slice(0, 100);
 
     if (topLogs.length === 0) {
         container.innerHTML = '<div class="text-muted text-center fw-bold p-4"><i class="fa-solid fa-folder-open fs-3 mb-2"></i><br>Aún no hay registros de auditoría procesados hoy.</div>';
     } else {
         let html = topLogs.map(l => {
-            let colorBorder = (l.act.includes("Canceló") || l.act.includes("Descartó")) ? "border-danger" : "border-success";
-            let icon = (l.act.includes("Canceló") || l.act.includes("Descartó")) ? "fa-xmark text-danger" : "fa-check text-success";
+            let logAct = String(l.act);
+            let logDet = String(l.det || '');
+            let notaMonitorista = "";
+            
+            if(logAct.includes("🗣️")) {
+                notaMonitorista = logAct;
+                logAct = logDet.split(" (Auto:")[0] || logAct;
+                logDet = logDet.includes("(Auto:") ? logDet.split("(Auto:")[1].replace(")", "").trim() : logDet;
+            } else if (logDet.includes("| Nota C4:")) {
+                let pts = logDet.split("| Nota C4:");
+                notaMonitorista = "🗣️ " + pts[1].trim();
+                logDet = pts[0].trim();
+            } else if (logDet.includes("| Nota:")) {
+                let pts = logDet.split("| Nota:");
+                notaMonitorista = "🗣️ " + pts[1].trim();
+                logDet = pts[0].trim();
+            }
+
+            let colorBorder = (logAct.includes("Canceló") || logAct.includes("Descartó")) ? "border-danger" : "border-success";
+            let icon = (logAct.includes("Canceló") || logAct.includes("Descartó")) ? "fa-xmark text-danger" : "fa-check text-success";
+            
+            let htmlNota = notaMonitorista ? `<div class="fw-bold text-primary mb-1" style="font-size:0.85rem;">${notaMonitorista}</div>` : '';
+
             return `
             <div class="bg-white p-2 rounded shadow-sm border-start border-4 ${colorBorder} mb-2" style="font-size:0.8rem;">
                 <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1">
@@ -720,15 +763,18 @@ window.abrirHistorialHubs = function() {
                     <span class="text-muted" style="font-size:0.7rem;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(l.t)}</span>
                 </div>
                 <div>
-                    <b class="text-primary"><i class="fa-solid fa-user-shield"></i> ${l.usr}:</b> <span class="fw-bold"><i class="fa-solid ${icon}"></i> ${l.act}</span>
-                    <div class="text-muted mt-1 fst-italic" style="background:#f8fafc; padding:4px; border-radius:4px; border:1px dashed #cbd5e1;">${l.det || 'Sin detalles'}</div>
+                    ${htmlNota}
+                    <b class="text-secondary"><i class="fa-solid fa-user-shield"></i> ${l.usr}:</b> <span class="fw-bold"><i class="fa-solid ${icon}"></i> ${logAct}</span>
+                    <div class="text-muted mt-1 fst-italic" style="background:#f8fafc; padding:4px; border-radius:4px; border:1px dashed #cbd5e1;">${logDet || 'Sin detalles'}</div>
                 </div>
             </div>`;
         }).join('');
         container.innerHTML = html;
     }
 
-    new bootstrap.Modal(document.getElementById('modalHistorialHubs')).show();
+    let modalEl = document.getElementById('modalHistorialHubs');
+    let modalInst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modalInst.show();
 };
 
 
@@ -2359,6 +2405,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
