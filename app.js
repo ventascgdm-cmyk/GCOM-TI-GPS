@@ -68,8 +68,9 @@ let currentCaptureBlob = null;
 let edChipsArray = [];
 let edChipsContArray = []; 
 
-// ORDENAMIENTO MANUAL
-let sortState = { column: null, direction: 'asc' };
+// ORDENAMIENTO MANUAL CON MEMORIA
+let savedSort = JSON.parse(localStorage.getItem('tms_sortState'));
+let sortState = savedSort || { column: 'estatus', direction: 'asc' }; // Por defecto Estatus
 
 function cambiarOrden(col) {
     if (sortState.column === col) {
@@ -78,6 +79,7 @@ function cambiarOrden(col) {
         sortState.column = col;
         sortState.direction = 'asc';
     }
+    localStorage.setItem('tms_sortState', JSON.stringify(sortState));
     renderizarBitacora();
 }
 
@@ -1473,12 +1475,27 @@ function renderizarBitacora() {
             html += getHeadersRow(cId);
 
             tree[cId][sId].sort((a, b) => { 
-                let valA = "", valB = "";
-                if (sortState.column === 'unidad') { valA = String(a.v.unidadN || a.v.unidadFallback || ""); valB = String(b.v.unidadN || b.v.unidadFallback || ""); } 
-                else if (sortState.column === 'ruta') { valA = String(a.v.origen || ""); valB = String(b.v.origen || ""); } 
-                else if (sortState.column === 'estatus') { valA = String(a.v.estatus || ""); valB = String(b.v.estatus || ""); } 
-                else { valA = String(a.v.estatus || ""); valB = String(b.v.estatus || ""); }
-                let cmp = valA.localeCompare(valB);
+                let cmp = 0;
+                let uniA = String(a.v.unidadN || a.v.unidadFallback || ""); 
+                let uniB = String(b.v.unidadN || b.v.unidadFallback || ""); 
+
+                if (sortState.column === 'unidad') { 
+                    cmp = uniA.localeCompare(uniB);
+                } 
+                else if (sortState.column === 'ruta') { 
+                    let valA = String(a.v.origen || ""); 
+                    let valB = String(b.v.origen || ""); 
+                    cmp = valA.localeCompare(valB);
+                } 
+                else { 
+                    // ESTATUS (Principal) + UNIDAD (Secundario en caso de empate)
+                    let valA = String(a.v.estatus || ""); 
+                    let valB = String(b.v.estatus || ""); 
+                    cmp = valA.localeCompare(valB);
+                    if (cmp === 0) {
+                        cmp = uniA.localeCompare(uniB); // Desempate por nombre de unidad
+                    }
+                }
                 return sortState.direction === 'asc' ? cmp : -cmp;
             });
 
@@ -2286,6 +2303,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
