@@ -626,32 +626,27 @@ function confirmarNotificacion(id, isSeguridad) {
     }
     
     let vId = n.vId; 
-    // NUEVO FORMATO DE LOG: Prioriza la nota del monitorista con un emoji
-    let detalleLog = nota ? `🗣️ ${nota} (Auto: ${n.detalle})` : `${n.detalle}`;
+    let defaultAct = "";
     
-    if (n.tipo === "SALIDA") { 
-        db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); 
-        registrarLog(vId, 'Confirmó SALIDA', detalleLog); 
-    } 
-    else if (n.tipo === "ARRIBO") { 
-        db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); 
-        registrarLog(vId, 'Confirmó ARRIBO', detalleLog); 
-    } 
-    else if (n.tipo === "FINALIZACION") { 
-        db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); 
-        registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); 
-    } 
-    else if (n.tipo === "PARADA") { 
-        db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null });
-        registrarLog(vId, 'Justificó PARADA', detalleLog); 
-    } 
-    else if (n.tipo === "REANUDACION") { 
-        db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); 
-        registrarLog(vId, 'Confirmó REANUDACIÓN', detalleLog); 
-    }
-    else if (n.tipo === "DESCONEXION") { 
-        registrarLog(vId, 'Confirmó ALERTA CONEXIÓN', detalleLog); 
-    }
+    // Nombres base de la acción
+    if (n.tipo === "SALIDA") defaultAct = 'Confirmó SALIDA';
+    else if (n.tipo === "ARRIBO") defaultAct = 'Confirmó ARRIBO';
+    else if (n.tipo === "FINALIZACION") defaultAct = 'Confirmó FINALIZADO';
+    else if (n.tipo === "PARADA") defaultAct = 'Justificó PARADA';
+    else if (n.tipo === "REANUDACION") defaultAct = 'Confirmó REANUDACIÓN';
+    else if (n.tipo === "DESCONEXION") defaultAct = 'Confirmó ALERTA CONEXIÓN';
+    
+    // MAGIA AQUÍ: Si hay nota, la nota se vuelve la acción principal. Si no, usa el default.
+    let finalAct = nota ? `🗣️ ${nota}` : defaultAct;
+    let finalDet = nota ? `${defaultAct} (Auto: ${n.detalle})` : `${n.detalle}`;
+    
+    if (n.tipo === "SALIDA") db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); 
+    else if (n.tipo === "ARRIBO") db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); 
+    else if (n.tipo === "FINALIZACION") db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); 
+    else if (n.tipo === "PARADA") db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null });
+    else if (n.tipo === "REANUDACION") db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); 
+    
+    registrarLog(vId, finalAct, finalDet); 
     
     db.ref('notificaciones_pendientes/' + id).remove(); 
     mostrarNotificacion("✅ Evento guardado y auditado."); 
@@ -668,14 +663,15 @@ function rechazarNotificacion(id, isSeguridad) {
     let inputEl = document.getElementById('nota_hub_' + id); 
     let nota = inputEl ? inputEl.value.trim() : ""; 
     
-    // NUEVO FORMATO DE LOG
-    let detalleLog = nota ? `🗣️ ${nota} (Descartó alerta: ${n.tipo})` : `Descartó alerta de ${n.tipo}`; 
+    // MAGIA AQUÍ TAMBIÉN
+    let finalAct = nota ? `🗣️ ${nota}` : `Canceló Alerta`;
+    let finalDet = nota ? `Descartó alerta de ${n.tipo}` : `Falsa alarma de ${n.tipo}`;
     
     if (n.tipo === "PARADA" || n.tipo === "REANUDACION") {
         db.ref('viajes_activos/'+n.vId+'/alerta_detenida').set(null);
     }
 
-    registrarLog(n.vId, `Canceló Alerta`, detalleLog); 
+    registrarLog(n.vId, finalAct, finalDet); 
     db.ref('notificaciones_pendientes/' + id).remove(); 
     mostrarNotificacion("🚫 Evento descartado."); 
     
@@ -1556,15 +1552,16 @@ function renderizarBitacora() {
 
                     let logsObj = v.log || {}; 
                     let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t);
+                    
                     let lastLog = logsArr.length > 0 ? 
-                        `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center">
+                        `<div class="text-start w-100 d-flex flex-column justify-content-center">
                             <div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;">
                                 <i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} 
                                 <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${nombreCamion}')"></i>
                             </div>
                             <div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;">
-                                <b class="text-primary">${String(logsArr[0].usr)}:</b> <span class="text-dark fw-bold">${String(logsArr[0].act)}</span>
-                                <div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${String(logsArr[0].det||'')}">${String(logsArr[0].det||'')}</div>
+                                <div style="white-space: normal;"><b class="text-primary">${String(logsArr[0].usr)}:</b> <span class="text-dark fw-bold">${String(logsArr[0].act)}</span></div>
+                                <div class="text-muted mt-1" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; font-size:0.6rem;" title="${String(logsArr[0].det||'')}">${String(logsArr[0].det||'')}</div>
                             </div>
                         </div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
 
@@ -2352,4 +2349,5 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
