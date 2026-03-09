@@ -12,7 +12,6 @@ function mostrarNotificacion(msg) {
     new bootstrap.Toast(document.getElementById('sysToast')).show();
 }
 
-// --- CONTROL DE PARPADEOS EN UI (PUNTO 6) ---
 // --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---
 let UI_PAUSED = false;
 
@@ -52,7 +51,11 @@ let estadoTokens = {};
 let datosAgrupadosGlobal = {}; 
 let mapaMarcadores = {}; 
 let salidasPendientes = {}; 
-let finalizacionesPendientes = {}; // PUNTO 1: Arribos que volvieron a moverse
+let finalizacionesPendientes = {}; // Arribos que volvieron a moverse
+
+// NUEVO: HUB DE NOTIFICACIONES GLOBALES
+let alertasSeguridad = {}; 
+let alertasLogistica = {};
 
 let geocodeCache = JSON.parse(localStorage.getItem('tms_geoCache')) || {}; 
 let geoQueue = []; 
@@ -90,8 +93,9 @@ const columnasDef = {
     'col-accion': { titulo: '<i class="fa-solid fa-bars"></i>', ancho: '65' }
 };
 
+// FIX PANTALLA BLANCA: Auto-Reparación de Columnas si el localStorage falla
 let colOrder = JSON.parse(localStorage.getItem('tms_colOrder'));
-if (!colOrder || colOrder.length !== Object.keys(columnasDef).length) {
+if (!colOrder || !Array.isArray(colOrder) || colOrder.length !== Object.keys(columnasDef).length || colOrder.some(c => !columnasDef[c])) {
     colOrder = Object.keys(columnasDef);
     localStorage.setItem('tms_colOrder', JSON.stringify(colOrder));
 }
@@ -372,7 +376,7 @@ window.clickMapaUnidad = function(vId) {
     let v = viajesActivos[vId]; 
     if(!v) return alert("Unidad no encontrada.");
     let uData = encontrarUnidad(v, vId);
-    if(uData && uData.pos && uData.pos.y) {
+    if(uData && uData.pos && typeof uData.pos.y !== 'undefined') {
         centrarUnidadMapa(uData.pos.y, uData.pos.x, vId);
     } else {
         alert("Esta unidad no tiene coordenadas GPS válidas en este momento.");
@@ -401,7 +405,7 @@ function actualizarMarcadoresMapa() {
         if(typeof v !== 'object' || !v) return;
         let uData = encontrarUnidad(v, vId);
         
-        if(uData && uData.pos) {
+        if(uData && uData.pos && typeof uData.pos.y !== 'undefined') {
             let isMoving = uData.pos.s > 0;
             let colorIcon = isMoving ? '#10b981' : '#0284c7';
             let course = uData.pos.c || 0;
@@ -417,7 +421,6 @@ function actualizarMarcadoresMapa() {
             let est = window.estatusData[v.estatus]?.nombre || "En Trayecto";
             let operador = v.operador || (uData.choferObj && uData.choferObj.nombre !== "Sin asignar" ? uData.choferObj.nombre : "Sin Operador");
 
-            // PUNTO 8: Hover dinámico en Mapa
             let hoverText = isMoving ? `En movimiento a ${vel} km/h (hace ${timeAgo(uData.pos.t)})` : `Unidad detenida (hace ${timeAgo(uData.pos.t)})`;
 
             let popupContent = `
@@ -471,6 +474,43 @@ function pintarGeocercasEnMapa() {
         }
     });
 }
+
+// ============================================================================
+// PARTE 2: ACCIONES SECUNDARIAS, WHATSAPP, CAPTURAS Y NUEVOS VIAJES
+// ============================================================================
+
+// --- NUEVO: SISTEMA DE ALERTAS GLOBALES ---
+function enviarNotificacionPersistente(vId, unidadName, tipo, detalle) {
+    let idLogico = vId + "_" + tipo; 
+    db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { 
+        if(!snap.exists()) { 
+            db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); 
+        } 
+    });
+}
+
+// Escuchar alertas en tiempo real para avisos de "Reanudación"
+db.ref('notificaciones_pendientes').on('value', snap => {
+    let data = snap.val() || {}; 
+    alertasSeguridad = {}; 
+    alertasLogistica = {};
+    
+    Object.keys(data).forEach(k => { 
+        let notif = data[k]; notif.id = k; 
+        if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) alertasLogistica[k] = notif; 
+        else alertasSeguridad[k] = notif; 
+    });
+    
+    // Si hay una reanudación, mostramos un Toast al monitorista automáticamente
+    Object.values(alertasSeguridad).forEach(n => {
+        if(n.tipo === 'REANUDACION') {
+            mostrarNotificacion(`✅ La unidad ${n.unidad} retomó su ruta (Reanudación).`);
+            // Auto-limpiar la alerta de la nube para que no sature la pantalla
+            setTimeout(() => db.ref('notificaciones_pendientes/' + n.id).remove(), 6000);
+        }
+    });
+});
+
 // --- ACCIONES SECUNDARIAS ---
 function cambiarEstatus(val, vId) { 
     let txt = window.estatusData[val].nombre; 
@@ -489,7 +529,8 @@ function editarUbicacionManual(vId) {
         let isCoords = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?)[,\s]+[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/.test(rawText);
         if (isCoords) {
             let coords = rawText.replace(/\s/g, '');
-            locText = `<a href="https://maps.google.com/?q=${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`;
+            // Corrección de enlace para Google Maps
+            locText = `<a href="https://www.google.com/maps?q=${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`;
         }
         db.ref(`viajes_activos/${vId}`).update({ ubicacion_manual: locText, ubicacion_manual_raw: rawText, t_ubicacion_manual: Date.now() });
         registrarLog(vId, 'Actualizó Ubicación', rawText); 
@@ -519,150 +560,291 @@ function finalizarViaje(vId, nombre) {
 }
 
 function abrirModalLog(uId, uName) { 
-    document.getElementById("log_uid").value = uId; document.getElementById("log_uName").innerText = uName; document.getElementById("log_txt").value = ""; 
-    let logsObj = viajesActivos[uId]?.log || {}; let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t); 
+    document.getElementById("log_uid").value = uId; 
+    document.getElementById("log_uName").innerText = uName; 
+    document.getElementById("log_txt").value = ""; 
+    
+    let logsObj = viajesActivos[uId]?.log || {}; 
+    let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t); 
     let html = logsArr.map(l => `<div class="mb-2 border-bottom pb-1"><div style="font-size:0.65rem; color:#6c757d; font-weight:bold; margin-bottom:1px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(l.t)}</div><b class="text-dark">${l.usr}:</b> <span class="text-primary">${l.act}</span> <span class="text-muted">${l.det||''}</span></div>`).join(''); 
     document.getElementById("log_container").innerHTML = html || '<div class="text-muted text-center p-2 mt-3">Sin eventos.</div>'; 
     new bootstrap.Modal(document.getElementById('modalLog')).show(); 
 }
 
 function guardarLogManual() { 
-    let uId = document.getElementById("log_uid").value; let txt = limpiarStr(document.getElementById("log_txt").value); 
-    if(!txt) return; registrarLog(uId, "Agregó Nota", txt); 
-    let v = viajesActivos[uId]; if (v && v.alerta_detenida) db.ref('viajes_activos/'+uId+'/alerta_detenida').set(null);
+    let uId = document.getElementById("log_uid").value; 
+    let txt = limpiarStr(document.getElementById("log_txt").value); 
+    if(!txt) return; 
+    
+    registrarLog(uId, "Agregó Nota", txt); 
+    let v = viajesActivos[uId]; 
+    if (v && v.alerta_detenida) {
+        db.ref('viajes_activos/'+uId+'/alerta_detenida').set(null);
+    }
+    
     try { bootstrap.Modal.getInstance(document.getElementById('modalLog')).hide(); } catch(e){} 
     mostrarNotificacion("Nota guardada en el historial.");
 }
 
 function enviarWA(vId) {
-    let v = viajesActivos[vId]; if(!v) return;
-    let uData = encontrarUnidad(v, vId); let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback);
-    let estNombre = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0;
-    let cliId = v.cliente || "Sin_Cliente"; let subId = v.subcliente || "N/A";
+    let v = viajesActivos[vId]; 
+    if(!v) return;
+    
+    let uData = encontrarUnidad(v, vId); 
+    let nombreCamion = limpiarStr(v.unidadN || v.unidadFallback);
+    let estNombre = window.estatusData[v.estatus]?.nombre || "En Trayecto"; 
+    let pos = uData ? uData.pos : null; 
+    let speed = pos ? pos.s : 0;
+    let cliId = v.cliente || "Sin_Cliente"; 
+    let subId = v.subcliente || "N/A";
     let cliName = (dataClientes[cliId] && dataClientes[cliId].nombre) ? dataClientes[cliId].nombre : "SIN CLIENTE";
     let subName = (dataClientes[cliId] && dataClientes[cliId].subclientes && dataClientes[cliId].subclientes[subId]) ? dataClientes[cliId].subclientes[subId].nombre : "";
     let subText = subName && subName !== "N/A" ? ` -> ${subName}` : '';
-    let addrText = v.ubicacion_manual_raw || "Buscando..."; let locLink = addrText; let geoTextWA = "";
+    let addrText = v.ubicacion_manual_raw || "Buscando..."; 
+    let locLink = addrText; 
+    let geoTextWA = "";
+    
     if (pos) {
         let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
         if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        locLink = `${addrText} \nhttps://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
+        
+        // FIX: Enlace universal de Google Maps
+        locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
     }
+    
     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-    let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
+    let cIdx = v.destino_idx || 0; 
+    let cOrigen = v.origen_actual || v.origen || "N/A"; 
+    let cDestino = arrDests[cIdx] || v.destino || "N/A";
     let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
+    
     let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${contStr}\n🛣️ *Ruta Actual:* ${cOrigen} ➔ ${cDestino}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank'); 
 }
 
 function generarReporteGrupal(cId, sId, titulo) {
     if(!datosAgrupadosGlobal[cId] || !datosAgrupadosGlobal[cId][sId]) return;
-    let arrViajes = datosAgrupadosGlobal[cId][sId]; let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
+    let arrViajes = datosAgrupadosGlobal[cId][sId]; 
+    let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
+    
     arrViajes.forEach(({v, vId}) => {
-        let uData = encontrarUnidad(v, vId); let name = limpiarStr(v.unidadN || v.unidadFallback);
-        let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let vel = pos ? pos.s : 0;
-        let locLink = v.ubicacion_manual_raw || "Manual"; let geoTextWA = "";
+        let uData = encontrarUnidad(v, vId); 
+        let name = limpiarStr(v.unidadN || v.unidadFallback);
+        let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; 
+        let pos = uData ? uData.pos : null; 
+        let vel = pos ? pos.s : 0;
+        let locLink = v.ubicacion_manual_raw || "Manual"; 
+        let geoTextWA = "";
+        
         if (pos) {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
             if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-            locLink = `https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
+            locLink = `https://www.google.com/maps?q=${pos.y},${pos.x}`;
         }
+        
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-        let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
+        let cIdx = v.destino_idx || 0; 
+        let cOrigen = v.origen_actual || v.origen || "N/A"; 
+        let cDestino = arrDests[cIdx] || v.destino || "N/A";
         let contStr = Array.isArray(v.contenedores_arr) ? v.contenedores_arr.join(' / ') : (v.contenedores || 'N/A');
+        
         txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${contStr}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${cOrigen} ➔ ${cDestino}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
     });
-    txt += `_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
+    
+    txt += `_Reporte C4_`; 
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
 }
 
 async function generarCapturaCliente(cId, cliName) {
-    let tableWrap = document.getElementById('scrollContainer'); let allRows = document.querySelectorAll('#units-body tr'); let hiddenRows = [];
-    allRows.forEach(r => { if(!r.classList.contains(`client-group-${cId}`)) { hiddenRows.push({el: r, display: r.style.display}); r.style.display = 'none'; } });
+    let tableWrap = document.getElementById('scrollContainer'); 
+    let allRows = document.querySelectorAll('#units-body tr'); 
+    let hiddenRows = [];
+    
+    allRows.forEach(r => { 
+        if(!r.classList.contains(`client-group-${cId}`)) { 
+            hiddenRows.push({el: r, display: r.style.display}); 
+            r.style.display = 'none'; 
+        } 
+    });
+    
     document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .dropdown-toggle, .btn-dots, .dropdown').forEach(el => el.classList.add('oculto-en-captura'));
-    let oldHeight = tableWrap.style.height; let oldMaxHeight = tableWrap.style.maxHeight; let oldOverflow = tableWrap.style.overflow;
-    tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible';
-    let oldW = document.getElementById("mainTable").style.width; document.getElementById("mainTable").style.width = "max-content";
+    
+    let oldHeight = tableWrap.style.height; 
+    let oldMaxHeight = tableWrap.style.maxHeight; 
+    let oldOverflow = tableWrap.style.overflow;
+    tableWrap.style.height = 'auto'; 
+    tableWrap.style.maxHeight = 'none'; 
+    tableWrap.style.overflow = 'visible';
+    let oldW = document.getElementById("mainTable").style.width; 
+    document.getElementById("mainTable").style.width = "max-content";
+    
     await new Promise(r => setTimeout(r, 400));
+    
     try {
         let canvas = await html2canvas(document.getElementById('mainTable'), { scale: 2, backgroundColor: '#f1f5f9', useCORS: true });
         canvas.toBlob(function(blob) {
-            currentCaptureBlob = blob; document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob);
+            currentCaptureBlob = blob; 
+            document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob);
             new bootstrap.Modal(document.getElementById('modalPreviewCaptura')).show();
         }, 'image/png');
-    } catch(e) { console.error(e); alert("Error al generar captura de pantalla."); } 
-    finally {
-        tableWrap.style.height = oldHeight; tableWrap.style.maxHeight = oldMaxHeight; tableWrap.style.overflow = oldOverflow;
-        document.getElementById("mainTable").style.width = oldW; hiddenRows.forEach(item => item.el.style.display = item.display);
+    } catch(e) { 
+        console.error(e); 
+        alert("Error al generar captura de pantalla."); 
+    } finally {
+        tableWrap.style.height = oldHeight; 
+        tableWrap.style.maxHeight = oldMaxHeight; 
+        tableWrap.style.overflow = oldOverflow;
+        document.getElementById("mainTable").style.width = oldW; 
+        hiddenRows.forEach(item => item.el.style.display = item.display);
         document.querySelectorAll('.oculto-en-captura').forEach(el => el.classList.remove('oculto-en-captura'));
     }
 }
-function descargarCaptura() { if(!currentCaptureBlob) return; let link = document.createElement('a'); link.download = `Estatus_Bitacora.png`; link.href = URL.createObjectURL(currentCaptureBlob); link.click(); }
-async function copiarCaptura() { if(!currentCaptureBlob) return; try { const item = new ClipboardItem({ "image/png": currentCaptureBlob }); await navigator.clipboard.write([item]); alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp Web (Ctrl+V)."); } catch (err) { alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); } }
+
+function descargarCaptura() { 
+    if(!currentCaptureBlob) return; 
+    let link = document.createElement('a'); 
+    link.download = `Estatus_Bitacora.png`; 
+    link.href = URL.createObjectURL(currentCaptureBlob); 
+    link.click(); 
+}
+
+async function copiarCaptura() { 
+    if(!currentCaptureBlob) return; 
+    try { 
+        const item = new ClipboardItem({ "image/png": currentCaptureBlob }); 
+        await navigator.clipboard.write([item]); 
+        alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp Web (Ctrl+V)."); 
+    } catch (err) { 
+        alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); 
+    } 
+}
 
 function renderChips(containerId, arrayData) {
-    let container = document.getElementById(containerId); container.querySelectorAll('.chip').forEach(e => e.remove());
+    let container = document.getElementById(containerId); 
+    container.querySelectorAll('.chip').forEach(e => e.remove());
     let inputEl = container.querySelector('input');
+    
     arrayData.forEach((text, index) => {
-        let chip = document.createElement('div'); chip.className = 'chip'; chip.innerHTML = `${text} <span class="chip-close" onclick="borrarChip(event, '${containerId}', ${index})"><i class="fa-solid fa-xmark"></i></span>`;
+        let chip = document.createElement('div'); 
+        chip.className = 'chip'; 
+        chip.innerHTML = `${text} <span class="chip-close" onclick="borrarChip(event, '${containerId}', ${index})"><i class="fa-solid fa-xmark"></i></span>`;
         container.insertBefore(chip, inputEl);
     });
 }
+
 function manejarChipInput(e, containerId, arrayData) {
-    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); let val = limpiarStr(e.target.value.replace(/,/g, '')); if (val) { arrayData.push(val); renderChips(containerId, arrayData); } e.target.value = ''; } 
-    else if (e.key === 'Backspace' && e.target.value === '' && arrayData.length > 0) { arrayData.pop(); renderChips(containerId, arrayData); }
+    if (e.key === 'Enter' || e.key === ',') { 
+        e.preventDefault(); 
+        let val = limpiarStr(e.target.value.replace(/,/g, '')); 
+        if (val) { 
+            arrayData.push(val); 
+            renderChips(containerId, arrayData); 
+        } 
+        e.target.value = ''; 
+    } else if (e.key === 'Backspace' && e.target.value === '' && arrayData.length > 0) { 
+        arrayData.pop(); 
+        renderChips(containerId, arrayData); 
+    }
 }
+
 window.borrarChip = function(e, containerId, index) {
     e.stopPropagation();
-    if(containerId === 'ed_chips_box') { edChipsArray.splice(index, 1); renderChips(containerId, edChipsArray); } 
-    else if(containerId === 'ed_chips_cont_box') { edChipsContArray.splice(index, 1); renderChips(containerId, edChipsContArray); } 
-    else { let filaCont = document.getElementById(containerId); if(filaCont && filaCont.chipData) { filaCont.chipData.splice(index, 1); renderChips(containerId, filaCont.chipData); } }
+    if(containerId === 'ed_chips_box') { 
+        edChipsArray.splice(index, 1); 
+        renderChips(containerId, edChipsArray); 
+    } else if(containerId === 'ed_chips_cont_box') { 
+        edChipsContArray.splice(index, 1); 
+        renderChips(containerId, edChipsContArray); 
+    } else { 
+        let filaCont = document.getElementById(containerId); 
+        if(filaCont && filaCont.chipData) { 
+            filaCont.chipData.splice(index, 1); 
+            renderChips(containerId, filaCont.chipData); 
+        } 
+    }
 };
-function expandirRuta(vId) { let tramo = document.getElementById('exp_ruta_' + vId); if(tramo) { tramo.classList.toggle('expanded'); tramo.classList.toggle('d-none'); } }
 
-let arribosPendientes = {};
+function expandirRuta(vId) { 
+    let tramo = document.getElementById('exp_ruta_' + vId); 
+    if(tramo) { 
+        tramo.classList.toggle('expanded'); 
+        tramo.classList.toggle('d-none'); 
+    } 
+}
+
 function abrirModalSalidasPendientes() {
-    let container = document.getElementById('listaSalidasContainer'); container.innerHTML = "";
+    let container = document.getElementById('listaSalidasContainer'); 
+    container.innerHTML = "";
     let mTitle = document.querySelector('#modalSalidasPendientes .modal-title');
     if (mTitle) mTitle.innerHTML = `<i class="fa-solid fa-bell me-2"></i> CONFIRMACIÓN DE EVENTOS GPS`;
+    
     Object.keys(salidasPendientes).forEach(vId => {
         let info = salidasPendientes[vId];
         container.innerHTML += `<div class="d-flex justify-content-between align-items-center bg-white p-2 rounded shadow-sm border border-danger mb-2" id="salida_pend_${vId}">
                 <div><div class="fw-bold text-dark" style="font-size:0.85rem;">${info.unidad}</div><div class="text-muted" style="font-size:0.7rem;"><i class="fa-solid fa-location-dot"></i> Origen: ${info.origen}</div></div>
                 <button class="btn btn-sm btn-danger fw-bold px-3 py-1 rounded-pill shadow-sm" onclick="confirmarSalidaPendiente('${vId}', '${info.unidad}')"><i class="fa-solid fa-check me-1"></i> Confirmar Salida</button></div>`;
     });
+    
     Object.keys(arribosPendientes).forEach(vId => {
         let info = arribosPendientes[vId];
         container.innerHTML += `<div class="d-flex justify-content-between align-items-center bg-white p-2 rounded shadow-sm border border-primary mb-2" id="arribo_pend_${vId}">
                 <div><div class="fw-bold text-dark" style="font-size:0.85rem;">${info.unidad}</div><div class="text-muted" style="font-size:0.7rem;"><i class="fa-solid fa-map-pin text-primary"></i> Llegó a: ${info.destino}</div></div>
                 <button class="btn btn-sm btn-primary fw-bold px-3 py-1 rounded-pill shadow-sm" onclick="confirmarArriboPendiente('${vId}', '${info.unidad}')"><i class="fa-solid fa-check me-1"></i> Confirmar Arribo</button></div>`;
     });
+    
     new bootstrap.Modal(document.getElementById('modalSalidasPendientes')).show();
 }
 
 window.confirmarSalidaPendiente = function(vId, nombre) {
-    db.ref('viajes_activos/' + vId + '/t_salida').set(Date.now()); registrarLog(vId, 'Marcó SALIDA', 'Confirmada desde Panel Inteligente');
-    mostrarNotificacion(`Salida de ${nombre} confirmada.`); let el = document.getElementById('salida_pend_' + vId); if(el) el.remove();
-    delete salidasPendientes[vId]; actualizarBotonFlotanteSalidas();
+    db.ref('viajes_activos/' + vId + '/t_salida').set(Date.now()); 
+    registrarLog(vId, 'Marcó SALIDA', 'Confirmada desde Panel Inteligente');
+    mostrarNotificacion(`Salida de ${nombre} confirmada.`); 
+    let el = document.getElementById('salida_pend_' + vId); 
+    if(el) el.remove();
+    delete salidasPendientes[vId]; 
+    actualizarBotonFlotanteSalidas();
 };
+
 window.confirmarArriboPendiente = function(vId, nombre) {
     db.ref('viajes_activos/' + vId).update({ t_arribo: Date.now(), estatus: 's8' });
-    registrarLog(vId, 'Marcó ARRIBO', 'Confirmado desde Panel Inteligente'); registrarLog(vId, 'Cambió estatus a', '4. Descargando');
-    mostrarNotificacion(`Arribo de ${nombre} confirmado.`); let el = document.getElementById('arribo_pend_' + vId); if(el) el.remove();
-    delete arribosPendientes[vId]; actualizarBotonFlotanteSalidas();
+    registrarLog(vId, 'Marcó ARRIBO', 'Confirmado desde Panel Inteligente'); 
+    registrarLog(vId, 'Cambió estatus a', '4. Descargando');
+    mostrarNotificacion(`Arribo de ${nombre} confirmado.`); 
+    let el = document.getElementById('arribo_pend_' + vId); 
+    if(el) el.remove();
+    delete arribosPendientes[vId]; 
+    actualizarBotonFlotanteSalidas();
 };
+
 function actualizarBotonFlotanteSalidas() {
-    let sCount = Object.keys(salidasPendientes).length; let aCount = Object.keys(arribosPendientes).length; let total = sCount + aCount; let btn = document.getElementById('btnFloatingDepartures'); 
+    let sCount = Object.keys(salidasPendientes).length; 
+    let aCount = Object.keys(arribosPendientes).length; 
+    let total = sCount + aCount; 
+    let btn = document.getElementById('btnFloatingDepartures'); 
+    
     if(total > 0) { 
-        if(aCount > 0 && sCount === 0) { btn.classList.replace('btn-danger', 'btn-primary'); btn.style.animation = 'pulseGreen 2s infinite'; btn.innerHTML = `<i class="fa-solid fa-map-pin me-2"></i> <span id="lblCountSalidas">${total}</span> Arribos Detectados`; } 
-        else { btn.classList.replace('btn-primary', 'btn-danger'); btn.style.animation = 'pulseRed 2s infinite'; btn.innerHTML = `<i class="fa-solid fa-bell me-2"></i> <span id="lblCountSalidas">${total}</span> Eventos GPS`; }
+        if(aCount > 0 && sCount === 0) { 
+            btn.classList.replace('btn-danger', 'btn-primary'); 
+            btn.style.animation = 'pulseGreen 2s infinite'; 
+            btn.innerHTML = `<i class="fa-solid fa-map-pin me-2"></i> <span id="lblCountSalidas">${total}</span> Arribos Detectados`; 
+        } else { 
+            btn.classList.replace('btn-primary', 'btn-danger'); 
+            btn.style.animation = 'pulseRed 2s infinite'; 
+            btn.innerHTML = `<i class="fa-solid fa-bell me-2"></i> <span id="lblCountSalidas">${total}</span> Eventos GPS`; 
+        }
         btn.classList.remove('d-none'); 
-    } else { btn.classList.add('d-none'); try{ bootstrap.Modal.getInstance(document.getElementById('modalSalidasPendientes')).hide(); }catch(e){} }
+    } else { 
+        btn.classList.add('d-none'); 
+        try{ bootstrap.Modal.getInstance(document.getElementById('modalSalidasPendientes')).hide(); }catch(e){} 
+    }
 }
 
 function abrirModalFinalizacionesPendientes() {
-    let container = document.getElementById('listaFinalizacionesContainer'); container.innerHTML = "";
+    let container = document.getElementById('listaFinalizacionesContainer'); 
+    container.innerHTML = "";
+    
     Object.keys(finalizacionesPendientes).forEach(vId => {
         let info = finalizacionesPendientes[vId];
         container.innerHTML += `<div class="d-flex justify-content-between align-items-center bg-white p-2 rounded shadow-sm border border-success mb-2" id="fin_pend_${vId}">
@@ -671,121 +853,234 @@ function abrirModalFinalizacionesPendientes() {
     });
     new bootstrap.Modal(document.getElementById('modalFinalizacionesPendientes')).show();
 }
+
 window.confirmarFinalizacionPendiente = function(vId, nombre) {
-    db.ref('viajes_activos/' + vId + '/t_fin').set(Date.now()); db.ref('viajes_activos/' + vId + '/estatus').set('s12'); 
-    registrarLog(vId, 'Marcó FINALIZADO', 'Confirmado desde Panel Inteligente'); mostrarNotificacion(`Viaje de ${nombre} finalizado con éxito.`);
-    let el = document.getElementById('fin_pend_' + vId); if(el) el.remove(); delete finalizacionesPendientes[vId]; actualizarBotonFlotanteFinalizaciones();
+    db.ref('viajes_activos/' + vId + '/t_fin').set(Date.now()); 
+    db.ref('viajes_activos/' + vId + '/estatus').set('s12'); 
+    registrarLog(vId, 'Marcó FINALIZADO', 'Confirmado desde Panel Inteligente'); 
+    mostrarNotificacion(`Viaje de ${nombre} finalizado con éxito.`);
+    let el = document.getElementById('fin_pend_' + vId); 
+    if(el) el.remove(); 
+    delete finalizacionesPendientes[vId]; 
+    actualizarBotonFlotanteFinalizaciones();
 };
+
 function actualizarBotonFlotanteFinalizaciones() {
-    let count = Object.keys(finalizacionesPendientes).length; let btn = document.getElementById('btnFloatingFinalizations'); let lbl = document.getElementById('lblCountFinalizations');
-    if(count > 0) { lbl.innerText = count; btn.classList.remove('d-none'); } else { btn.classList.add('d-none'); try{ bootstrap.Modal.getInstance(document.getElementById('modalFinalizacionesPendientes')).hide(); }catch(e){} }
+    let count = Object.keys(finalizacionesPendientes).length; 
+    let btn = document.getElementById('btnFloatingFinalizations'); 
+    let lbl = document.getElementById('lblCountFinalizations');
+    
+    if(count > 0) { 
+        lbl.innerText = count; 
+        btn.classList.remove('d-none'); 
+    } else { 
+        btn.classList.add('d-none'); 
+        try{ bootstrap.Modal.getInstance(document.getElementById('modalFinalizacionesPendientes')).hide(); }catch(e){} 
+    }
 }
 
 window.avanzarMultiDestino = function(vId) {
-    let v = viajesActivos[vId]; if (!v) return;
+    let v = viajesActivos[vId]; 
+    if (!v) return;
+    
     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-    let totalDests = arrDests.length || 1; let currentIdx = v.destino_idx || 0; let now = Date.now();
+    let totalDests = arrDests.length || 1; 
+    let currentIdx = v.destino_idx || 0; 
+    let now = Date.now();
+    
     db.ref(`viajes_activos/${vId}/t_fin`).set(now);
+    
     setTimeout(() => {
         if (currentIdx < totalDests - 1) {
-            let updates = {}; registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, arrDests[currentIdx]);
+            let updates = {}; 
+            registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, arrDests[currentIdx]);
+            
             let tramoRef = `historial_tramos/${currentIdx}`;
             updates[tramoRef] = { destino: arrDests[currentIdx], t_salida: v.t_salida || null, t_arribo: v.t_arribo || null, t_fin: now };
-            updates['destino_idx'] = currentIdx + 1; updates['origen_actual'] = arrDests[currentIdx]; 
-            updates['t_salida'] = now; updates['t_arribo'] = null; updates['t_fin'] = null; updates['is_transit'] = true; 
+            updates['destino_idx'] = currentIdx + 1; 
+            updates['origen_actual'] = arrDests[currentIdx]; 
+            updates['t_salida'] = now; 
+            updates['t_arribo'] = null; 
+            updates['t_fin'] = null; 
+            updates['is_transit'] = true; 
+            
             db.ref(`viajes_activos/${vId}`).update(updates);
         }
     }, 300);
 };
+
 function marcarSalida(vId, cIdx) {
-    let updates = { t_salida: Date.now() }; if (cIdx === 0) updates['t_salida_origen'] = Date.now();
-    db.ref(`viajes_activos/${vId}`).update(updates); registrarLog(vId, 'Marcó SALIDA');
+    let updates = { t_salida: Date.now() }; 
+    if (cIdx === 0) updates['t_salida_origen'] = Date.now();
+    db.ref(`viajes_activos/${vId}`).update(updates); 
+    registrarLog(vId, 'Marcó SALIDA');
 }
 
-// UTILIDADES MATEMÁTICAS DE TIEMPO (NUEVO)
 function formatTimeDiff(mins) {
     let m = Math.abs(mins);
-    let d = Math.floor(m / 1440); let h = Math.floor((m % 1440) / 60); let remM = m % 60;
-    let str = []; if(d > 0) str.push(`${d}d`); if(h > 0) str.push(`${h}h`); if(remM > 0 || str.length === 0) str.push(`${remM}m`);
+    let d = Math.floor(m / 1440); 
+    let h = Math.floor((m % 1440) / 60); 
+    let remM = m % 60;
+    let str = []; 
+    if(d > 0) str.push(`${d}d`); 
+    if(h > 0) str.push(`${h}h`); 
+    if(remM > 0 || str.length === 0) str.push(`${remM}m`);
     return str.join(' ');
 }
 
 function abrirModalEdicionHora(vId, field, titulo, actualTs) {
-    document.getElementById('eh_vId').value = vId; document.getElementById('eh_field').value = field;
-    document.getElementById('eh_txtVacio').value = titulo; document.getElementById('eh_title').innerText = titulo;
-    if(actualTs && actualTs !== 'null') { document.getElementById('eh_input').value = getLocalISO(Number(actualTs)); } 
-    else { document.getElementById('eh_input').value = getLocalISO(Date.now()); }
+    document.getElementById('eh_vId').value = vId; 
+    document.getElementById('eh_field').value = field;
+    document.getElementById('eh_txtVacio').value = titulo; 
+    document.getElementById('eh_title').innerText = titulo;
+    if(actualTs && actualTs !== 'null') { 
+        document.getElementById('eh_input').value = getLocalISO(Number(actualTs)); 
+    } else { 
+        document.getElementById('eh_input').value = getLocalISO(Date.now()); 
+    }
     new bootstrap.Modal(document.getElementById('modalEditHora')).show();
 }
 
 function guardarHorarioModal() {
-    let vId = document.getElementById('eh_vId').value; let field = document.getElementById('eh_field').value;
-    let titulo = document.getElementById('eh_txtVacio').value; let val = document.getElementById('eh_input').value;
+    let vId = document.getElementById('eh_vId').value; 
+    let field = document.getElementById('eh_field').value;
+    let titulo = document.getElementById('eh_txtVacio').value; 
+    let val = document.getElementById('eh_input').value;
     if(!val) return mostrarNotificacion("Selecciona una fecha válida.");
     let d = new Date(val).getTime();
     if(d) {
-        db.ref('viajes_activos/'+vId+'/'+field).set(d); registrarLog(vId, 'Modificó horario de', titulo);
-        mostrarNotificacion("Horario actualizado."); try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){}
+        db.ref('viajes_activos/'+vId+'/'+field).set(d); 
+        registrarLog(vId, 'Modificó horario de', titulo);
+        mostrarNotificacion("Horario actualizado."); 
+        try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){}
     }
 }
 
 window.borrarHorarioModal = function() {
-    let vId = document.getElementById('eh_vId').value; let field = document.getElementById('eh_field').value;
+    let vId = document.getElementById('eh_vId').value; 
+    let field = document.getElementById('eh_field').value;
     let titulo = document.getElementById('eh_txtVacio').value;
     if(confirm(`¿Estás seguro de BORRAR el horario de ${titulo}?`)) {
-        db.ref('viajes_activos/'+vId+'/'+field).set(null); registrarLog(vId, 'Eliminó horario', titulo);
-        mostrarNotificacion(`Horario de ${titulo} eliminado.`); try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){}
+        db.ref('viajes_activos/'+vId+'/'+field).set(null); 
+        registrarLog(vId, 'Eliminó horario', titulo);
+        mostrarNotificacion(`Horario de ${titulo} eliminado.`); 
+        try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){}
     }
 };
 
 function construirBotonHorario(vId, timestampStr, dbField, textoVacio, claseColor, isTransit = false, onClickOverride = null) {
     let colorFinal = isTransit ? 'warning' : claseColor;
     let onClk = onClickOverride ? onClickOverride : `abrirModalEdicionHora('${vId}', '${dbField}', '${textoVacio}', '${timestampStr || 'null'}')`;
-    if (dbField === 't_salida' && !timestampStr && !onClickOverride) { onClk = `marcarSalida('${vId}', ${viajesActivos[vId]?.destino_idx || 0})`; }
-    if(!timestampStr) { return `<button class="btn btn-sm w-100 bg-white text-${colorFinal} shadow-sm" style="font-size:0.6rem; font-weight:800; padding:2px 0; margin-bottom:2px; border: 1px dashed var(--bs-${colorFinal});" onclick="${onClk}">${textoVacio}</button>`; } 
-    else { let displayDate = formatearFechaElegante(timestampStr); return `<div class="position-relative w-100 cp" style="margin-bottom:2px;" title="Clic para editar" onclick="${onClk}"><div class="d-flex align-items-center rounded shadow-sm border border-${colorFinal}" style="overflow: hidden; height:18px; background: rgba(255,255,255,0.5);"><span class="bg-${colorFinal} text-white fw-bold text-center d-flex align-items-center justify-content-center" style="font-size:0.55rem; width:18px; height:100%;">${textoVacio.charAt(0)}</span><span class="fw-bold text-center w-100 text-${colorFinal}" style="font-size:0.6rem; line-height:18px;">${displayDate}</span></div></div>`; }
+    
+    if (dbField === 't_salida' && !timestampStr && !onClickOverride) { 
+        onClk = `marcarSalida('${vId}', ${viajesActivos[vId]?.destino_idx || 0})`; 
+    }
+    
+    if(!timestampStr) { 
+        return `<button class="btn btn-sm w-100 bg-white text-${colorFinal} shadow-sm" style="font-size:0.6rem; font-weight:800; padding:2px 0; margin-bottom:2px; border: 1px dashed var(--bs-${colorFinal});" onclick="${onClk}">${textoVacio}</button>`; 
+    } else { 
+        let displayDate = formatearFechaElegante(timestampStr); 
+        return `<div class="position-relative w-100 cp" style="margin-bottom:2px;" title="Clic para editar" onclick="${onClk}"><div class="d-flex align-items-center rounded shadow-sm border border-${colorFinal}" style="overflow: hidden; height:18px; background: rgba(255,255,255,0.5);"><span class="bg-${colorFinal} text-white fw-bold text-center d-flex align-items-center justify-content-center" style="font-size:0.55rem; width:18px; height:100%;">${textoVacio.charAt(0)}</span><span class="fw-bold text-center w-100 text-${colorFinal}" style="font-size:0.6rem; line-height:18px;">${displayDate}</span></div></div>`; 
+    }
 }
 
 function vincularChoferEnWialon(wialonUnitId, nombreChoferLimpio) {
     if (!wialonUnitId || wialonUnitId === "EXTERNO" || !nombreChoferLimpio) return;
-    let uData = unidadesGlobales[wialonUnitId]; let choferData = diccChoferesGlobal[nombreChoferLimpio];
+    let uData = unidadesGlobales[wialonUnitId]; 
+    let choferData = diccChoferesGlobal[nombreChoferLimpio];
     if (uData && choferData) {
         let tkObj = configSistema.tokens.find(t => t.nombre === uData.tkNombre);
         if (tkObj && activeSIDs[tkObj.token]) {
             peticionWialon(tkObj.url, "resource/bind_unit_driver", { resourceId: choferData.rid, unitId: uData.id, driverId: choferData.id, time: 0, mode: 1 }, activeSIDs[tkObj.token].sid).then(res => {
-                if(res && res.error) console.error("Error Wialon Bind:", res.error); else { console.log(`Chofer ligado en Wialon: ${nombreChoferLimpio}`); mostrarNotificacion(`✅ Chofer asignado exitosamente en Wialon.`); }
+                if(res && res.error) console.error("Error Wialon Bind:", res.error); 
+                else { console.log(`Chofer ligado en Wialon: ${nombreChoferLimpio}`); mostrarNotificacion(`✅ Chofer asignado exitosamente en Wialon.`); }
             });
         }
     }
 }
 
-window.promptNuevoCliente = function() { let n = prompt("Nombre del Nuevo Cliente:"); if(n) { db.ref('clientes').push({nombre: limpiarStr(n), logo: ""}); mostrarNotificacion("Cliente agregado."); } };
-window.promptNuevoSubcliente = function() { let cId = document.getElementById("nv_cliente").value; if(!cId) return alert("Selecciona un cliente."); let n = prompt("Nombre del Nuevo Subcliente:"); if(n) { db.ref(`clientes/${cId}/subclientes`).push({nombre: limpiarStr(n)}); setTimeout(cargarSubclientesNuevoViaje, 600); } };
-window.cargarSubclientesNuevoViaje = function() { let cId = document.getElementById("nv_cliente").value; let selSub = document.getElementById("nv_subcliente"); selSub.innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; if(cId && dataClientes[cId] && dataClientes[cId].subclientes) { selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => `<option value="${k}">${dataClientes[cId].subclientes[k].nombre}</option>`).join(''); } };
+window.promptNuevoCliente = function() { 
+    let n = prompt("Nombre del Nuevo Cliente:"); 
+    if(n) { db.ref('clientes').push({nombre: limpiarStr(n), logo: ""}); mostrarNotificacion("Cliente agregado."); } 
+};
+
+window.promptNuevoSubcliente = function() { 
+    let cId = document.getElementById("nv_cliente").value; 
+    if(!cId) return alert("Selecciona un cliente."); 
+    let n = prompt("Nombre del Nuevo Subcliente:"); 
+    if(n) { db.ref(`clientes/${cId}/subclientes`).push({nombre: limpiarStr(n)}); setTimeout(cargarSubclientesNuevoViaje, 600); } 
+};
+
+window.cargarSubclientesNuevoViaje = function() { 
+    let cId = document.getElementById("nv_cliente").value; 
+    let selSub = document.getElementById("nv_subcliente"); 
+    selSub.innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; 
+    if(cId && dataClientes[cId] && dataClientes[cId].subclientes) { 
+        selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => `<option value="${k}">${dataClientes[cId].subclientes[k].nombre}</option>`).join(''); 
+    } 
+};
 
 function prepararNuevoViaje() { 
     document.getElementById("nv_cliente").innerHTML = '<option value="">-- SELECCIONE CLIENTE --</option>' + Object.keys(dataClientes).map(k => `<option value="${k}">${dataClientes[k].nombre}</option>`).join('');
-    document.getElementById("nv_subcliente").innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; document.getElementById("nv_filas_container").innerHTML = ""; document.getElementById("nv_externa").checked = false; agregarFilaNV(); 
+    document.getElementById("nv_subcliente").innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; 
+    document.getElementById("nv_filas_container").innerHTML = ""; 
+    document.getElementById("nv_externa").checked = false; 
+    agregarFilaNV(); 
 }
 
 let filaContador = 0;
 function agregarFilaNV() {
-    filaContador++; let isExterna = document.getElementById("nv_externa").checked; let div = document.createElement("div"); div.className = "bg-white border rounded p-2 mb-2 nv-fila position-relative shadow-sm";
-    let boxId = `nv_chip_box_${filaContador}`; let contBoxId = `cont_${boxId}`;
-    div.innerHTML = `<button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 px-2 py-0 rounded" onclick="this.parentElement.remove()" title="Quitar Unidad"><i class="fa-solid fa-xmark"></i></button><div class="row gx-2 mt-1 align-items-end"><div class="col-3"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">UNIDAD GPS</label><input type="text" class="form-control form-control-sm border-primary fw-bold text-uppercase nv-unidad" list="listaUnidadesTotales" placeholder="Buscar unidad..." oninput="autofillOp(this)"></div><div class="col-3"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">ORIGEN</label><input type="text" class="form-control form-control-sm text-uppercase nv-origen" list="listaGeocercas" placeholder="Escribir..."></div><div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">DESTINO(S) <span class="fw-normal">(Da Enter)</span></label><div class="chips-container" id="${boxId}" onclick="this.querySelector('input').focus()"><input type="text" list="listaGeocercas" placeholder="Destinos y Enter..." class="nv-destino-input" onkeydown="manejarChipInput(event, '${boxId}', document.getElementById('${boxId}').chipData)"></div></div><div class="col-2"><label style="font-size:0.65rem;" class="fw-bold text-info mb-1"><i class="fa-regular fa-calendar-check"></i> PROG.</label><input type="datetime-local" class="form-control form-control-sm nv-t-programada border-info bg-light" title="Opcional"></div></div><div class="row gx-2 mt-2 align-items-end"><div class="col-6 nv-operador-row" style="display:${isExterna ? 'flex' : 'none'}; gap:10px;"><input type="text" class="form-control form-control-sm text-uppercase nv-operador w-50" list="listaConductores" placeholder="Nombre Operador"><input type="text" class="form-control form-control-sm text-uppercase nv-operador-tel w-50 border-warning" placeholder="Teléfono (Opcional)"></div><div class="col-6 ms-auto"><div class="chips-container" id="${contBoxId}" onclick="this.querySelector('input').focus()"><input type="text" placeholder="CONTENEDORES / CAJAS (Da Enter)..." class="nv-contenedores-input" onkeydown="manejarChipInput(event, '${contBoxId}', document.getElementById('${contBoxId}').chipData)"></div></div></div>`;
-    document.getElementById("nv_filas_container").appendChild(div); document.getElementById(boxId).chipData = []; document.getElementById(contBoxId).chipData = [];
+    filaContador++; 
+    let isExterna = document.getElementById("nv_externa").checked; 
+    let div = document.createElement("div"); 
+    div.className = "bg-white border rounded p-2 mb-2 nv-fila position-relative shadow-sm";
+    let boxId = `nv_chip_box_${filaContador}`; 
+    let contBoxId = `cont_${boxId}`;
+    
+    div.innerHTML = `
+        <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 px-2 py-0 rounded" onclick="this.parentElement.remove()" title="Quitar Unidad"><i class="fa-solid fa-xmark"></i></button>
+        <div class="row gx-2 mt-1 align-items-end">
+            <div class="col-3"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">UNIDAD GPS</label><input type="text" class="form-control form-control-sm border-primary fw-bold text-uppercase nv-unidad" list="listaUnidadesTotales" placeholder="Buscar unidad..." oninput="autofillOp(this)"></div>
+            <div class="col-3"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">ORIGEN</label><input type="text" class="form-control form-control-sm text-uppercase nv-origen" list="listaGeocercas" placeholder="Escribir..."></div>
+            <div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">DESTINO(S) <span class="fw-normal">(Da Enter)</span></label><div class="chips-container" id="${boxId}" onclick="this.querySelector('input').focus()"><input type="text" list="listaGeocercas" placeholder="Destinos y Enter..." class="nv-destino-input" onkeydown="manejarChipInput(event, '${boxId}', document.getElementById('${boxId}').chipData)"></div></div>
+            <div class="col-2"><label style="font-size:0.65rem;" class="fw-bold text-info mb-1"><i class="fa-regular fa-calendar-check"></i> PROG.</label><input type="datetime-local" class="form-control form-control-sm nv-t-programada border-info bg-light" title="Opcional"></div>
+        </div>
+        <div class="row gx-2 mt-2 align-items-end">
+            <div class="col-6 nv-operador-row" style="display:${isExterna ? 'flex' : 'none'}; gap:10px;"><input type="text" class="form-control form-control-sm text-uppercase nv-operador w-50" list="listaConductores" placeholder="Nombre Operador"><input type="text" class="form-control form-control-sm text-uppercase nv-operador-tel w-50 border-warning" placeholder="Teléfono (Opcional)"></div>
+            <div class="col-6 ms-auto"><div class="chips-container" id="${contBoxId}" onclick="this.querySelector('input').focus()"><input type="text" placeholder="CONTENEDORES / CAJAS (Da Enter)..." class="nv-contenedores-input" onkeydown="manejarChipInput(event, '${contBoxId}', document.getElementById('${contBoxId}').chipData)"></div></div>
+        </div>`;
+    
+    document.getElementById("nv_filas_container").appendChild(div); 
+    document.getElementById(boxId).chipData = []; 
+    document.getElementById(contBoxId).chipData = [];
 }
 
-document.getElementById('nv_externa').addEventListener('change', function() { document.querySelectorAll('.nv-operador-row').forEach(el => el.style.display = this.checked ? 'flex' : 'none'); });
-function autofillOp(inputEl) { let uN = limpiarStr(inputEl.value); let opInput = inputEl.parentElement.parentElement.nextElementSibling.querySelector('.nv-operador'); if(opInput && (ramDrivers[uN] || dbOperadores[uN])) { opInput.value = ramDrivers[uN] || dbOperadores[uN]; } }
+document.getElementById('nv_externa').addEventListener('change', function() { 
+    document.querySelectorAll('.nv-operador-row').forEach(el => el.style.display = this.checked ? 'flex' : 'none'); 
+});
+
+function autofillOp(inputEl) { 
+    let uN = limpiarStr(inputEl.value); 
+    let opInput = inputEl.parentElement.parentElement.nextElementSibling.querySelector('.nv-operador'); 
+    if(opInput && (ramDrivers[uN] || dbOperadores[uN])) { 
+        opInput.value = ramDrivers[uN] || dbOperadores[uN]; 
+    } 
+}
 
 function registrarViajesMultiples() {
-    let cId = document.getElementById("nv_cliente").value; let sId = document.getElementById("nv_subcliente").value || "N/A";
+    let cId = document.getElementById("nv_cliente").value; 
+    let sId = document.getElementById("nv_subcliente").value || "N/A";
+    
     if(!cId) return alert("Debes seleccionar un Cliente de la lista.");
-    let isExterna = document.getElementById("nv_externa").checked; let filas = document.querySelectorAll(".nv-fila");
+    
+    let isExterna = document.getElementById("nv_externa").checked; 
+    let filas = document.querySelectorAll(".nv-fila");
+    
     if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
     
-    let batchPromises = []; let errorFound = false;
+    let batchPromises = []; 
+    let errorFound = false;
+    
     filas.forEach(fila => {
         if(errorFound) return;
         let uInput = limpiarStr(fila.querySelector(".nv-unidad").value); 
@@ -794,43 +1089,93 @@ function registrarViajesMultiples() {
         let origen = limpiarStr(fila.querySelector(".nv-origen").value);
         let opInput = isExterna && opTelRaw ? `${opInputRaw} - TEL: ${opTelRaw}` : opInputRaw;
         
-        let destBoxId = fila.querySelectorAll('.chips-container')[0].id; let contBoxId = fila.querySelectorAll('.chips-container')[1].id;
-        let destArr = document.getElementById(destBoxId).chipData || []; let contArr = document.getElementById(contBoxId).chipData || [];
-        let tProgRaw = fila.querySelector(".nv-t-programada").value; let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
+        let destBoxId = fila.querySelectorAll('.chips-container')[0].id; 
+        let contBoxId = fila.querySelectorAll('.chips-container')[1].id;
+        let destArr = document.getElementById(destBoxId).chipData || []; 
+        let contArr = document.getElementById(contBoxId).chipData || [];
+        let tProgRaw = fila.querySelector(".nv-t-programada").value; 
+        let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
         
-        if(destArr.length === 0) { alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); errorFound = true; return; }
-        if(!uInput) { alert("El nombre de la unidad no puede estar vacío"); errorFound = true; return; }
+        if(destArr.length === 0) { 
+            alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); 
+            errorFound = true; 
+            return; 
+        }
+        if(!uInput) { 
+            alert("El nombre de la unidad no puede estar vacío"); 
+            errorFound = true; 
+            return; 
+        }
         
         let wId = "EXTERNO";
         if (!isExterna) { 
-            let nNorm = uInput.replace(/[\s\-]/g, ""); let foundWialon = false;
-            for(let k in unidadesGlobales){ if(limpiarStr(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { wId = k; uInput = unidadesGlobales[k].name; foundWialon = true; break; } } 
-            if(!foundWialon) { alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); errorFound = true; return; }
+            let nNorm = uInput.replace(/[\s\-]/g, ""); 
+            let foundWialon = false;
+            for(let k in unidadesGlobales){ 
+                if(limpiarStr(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { 
+                    wId = k; 
+                    uInput = unidadesGlobales[k].name; 
+                    foundWialon = true; 
+                    break; 
+                } 
+            } 
+            if(!foundWialon) { 
+                alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); 
+                errorFound = true; 
+                return; 
+            }
         }
         
         let refPush = db.ref('viajes_activos').push();
-        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destinos: destArr, destino_idx: 0, estatus: "s1", operador: opInput, contenedores_arr: contArr, t_programada: tProgTs, unidadFallback: uInput, unidadN: uInput }).then(() => {
+        let p = refPush.set({ 
+            id: refPush.key, 
+            wialonId: wId, 
+            cliente: cId, 
+            subcliente: sId, 
+            origen: origen, 
+            destinos: destArr, 
+            destino_idx: 0, 
+            estatus: "s1", 
+            operador: opInput, 
+            contenedores_arr: contArr, 
+            t_programada: tProgTs, 
+            unidadFallback: uInput, 
+            unidadN: uInput 
+        }).then(() => {
             registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS");
             if(tProgTs) registrarLog(refPush.key, "Hora de Salida Programada", tProgRaw.replace('T', ' '));
-            if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { vincularChoferEnWialon(wId, opInputRaw); }
+            if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { 
+                vincularChoferEnWialon(wId, opInputRaw); 
+            }
         });
         batchPromises.push(p);
     });
+    
     if(errorFound) return;
-    Promise.all(batchPromises).then(() => { mostrarNotificacion("¡Viajes registrados con éxito!"); try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){} });
+    
+    Promise.all(batchPromises).then(() => { 
+        mostrarNotificacion("¡Viajes registrados con éxito!"); 
+        try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){} 
+    });
 }
 
 function abrirEdicionViaje(uId, uName) { 
-    let v = viajesActivos[uId]; if(!v) return; 
-    document.getElementById("edU_id").value = uId; document.getElementById("edU_name").innerText = uName; 
-    document.getElementById("ed_origen").value = v.origen || ""; document.getElementById("ed_t_programada").value = v.t_programada ? getLocalISO(v.t_programada) : "";
+    let v = viajesActivos[uId]; 
+    if(!v) return; 
+    
+    document.getElementById("edU_id").value = uId; 
+    document.getElementById("edU_name").innerText = uName; 
+    document.getElementById("ed_origen").value = v.origen || ""; 
+    document.getElementById("ed_t_programada").value = v.t_programada ? getLocalISO(v.t_programada) : "";
     
     let isExt = (v.wialonId === "EXTERNO");
     document.getElementById("ed_operador_wialon_wrapper").style.display = isExt ? 'none' : 'block';
     document.getElementById("ed_operador_manual_wrapper").style.display = isExt ? 'block' : 'none';
 
-    let opSelect = document.getElementById("ed_operador_wialon"); opSelect.innerHTML = `<option value="">-- SELECCIONAR DE WIALON --</option>`;
+    let opSelect = document.getElementById("ed_operador_wialon"); 
+    opSelect.innerHTML = `<option value="">-- SELECCIONAR DE WIALON --</option>`;
     let wialonSet = new Set();
+    
     Object.values(diccChoferesGlobal).forEach(chofer => {
         let opName = limpiarStr(chofer.nombre);
         if(opName && opName !== "SIN ASIGNAR" && !wialonSet.has(opName)) {
@@ -845,25 +1190,43 @@ function abrirEdicionViaje(uId, uName) {
     document.getElementById("ed_cliente").value = (v.cliente && v.cliente !== "Sin_Cliente" && dataClientes[v.cliente]) ? dataClientes[v.cliente].nombre : "SIN CLIENTE"; 
     document.getElementById("ed_subcliente").value = (v.subcliente && v.subcliente !== "N/A" && dataClientes[v.cliente] && dataClientes[v.cliente].subclientes && dataClientes[v.cliente].subclientes[v.subcliente]) ? dataClientes[v.cliente].subclientes[v.subcliente].nombre : "SIN SUBCLIENTE"; 
     
-    edChipsArray = Array.isArray(v.destinos) ? [...v.destinos] : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); renderChips('ed_chips_box', edChipsArray);
-    edChipsContArray = Array.isArray(v.contenedores_arr) ? [...v.contenedores_arr] : (v.contenedores ? [v.contenedores] : []); renderChips('ed_chips_cont_box', edChipsContArray);
+    edChipsArray = Array.isArray(v.destinos) ? [...v.destinos] : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); 
+    renderChips('ed_chips_box', edChipsArray);
+    
+    edChipsContArray = Array.isArray(v.contenedores_arr) ? [...v.contenedores_arr] : (v.contenedores ? [v.contenedores] : []); 
+    renderChips('ed_chips_cont_box', edChipsContArray);
+    
     new bootstrap.Modal(document.getElementById('modalEditarViaje')).show(); 
 }
 
 function guardarEdicionViaje() { 
-    let uId = document.getElementById("edU_id").value; let v = viajesActivos[uId]; if(!v) return;
-    let tProgRaw = document.getElementById("ed_t_programada").value; let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
+    let uId = document.getElementById("edU_id").value; 
+    let v = viajesActivos[uId]; 
+    if(!v) return;
+    
+    let tProgRaw = document.getElementById("ed_t_programada").value; 
+    let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
 
-    let isExt = (v.wialonId === "EXTERNO"); let opWialon = document.getElementById("ed_operador_wialon").value; let opManual = document.getElementById("ed_operador").value;
+    let isExt = (v.wialonId === "EXTERNO"); 
+    let opWialon = document.getElementById("ed_operador_wialon").value; 
+    let opManual = document.getElementById("ed_operador").value;
     let finalOp = isExt ? limpiarStr(opManual) : limpiarStr(opWialon);
 
     registrarLog(uId, "Editó Datos", "Rutas/Contenedor/Hora"); 
-    db.ref('viajes_activos/' + uId).update({ origen: limpiarStr(document.getElementById("ed_origen").value), destinos: edChipsArray, contenedores_arr: edChipsContArray, operador: finalOp, t_programada: tProgTs }).then(() => { 
+    
+    db.ref('viajes_activos/' + uId).update({ 
+        origen: limpiarStr(document.getElementById("ed_origen").value), 
+        destinos: edChipsArray, 
+        contenedores_arr: edChipsContArray, 
+        operador: finalOp, 
+        t_programada: tProgTs 
+    }).then(() => { 
         mostrarNotificacion("Cambios guardados.");
         if (!isExt && opWialon) vincularChoferEnWialon(v.wialonId, finalOp);
         try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} 
     }); 
 }
+
 // ============================================================================
 // PARTE 3: RENDERIZADO DE TABLA, GPS Y FUNCIONES ADMINISTRATIVAS
 // ============================================================================
@@ -989,12 +1352,21 @@ function renderizarBitacora() {
                             </div>
                         </div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
 
-                    let htmlCajaLog = v.alerta_detenida 
-                        ? `<div class="log-alert-container shadow-sm" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Dale clic para escribir qué pasó">
+                    // LÓGICA DE ALERTA VISUAL (Parada = Rojo, Reanudación = Verde)
+                    let htmlCajaLog = lastLog;
+                    if (v.alerta_detenida) {
+                        htmlCajaLog = `
+                            <div class="log-alert-container shadow-sm" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Dale clic para escribir qué pasó">
                                 <i class="fa-solid fa-bell log-alert-icon"></i>
                                 <div class="log-alert-text">ALERTA: JUSTIFICAR PARADA</div>
-                           </div>` 
-                        : lastLog;
+                            </div>`;
+                    } else if (v.alerta_reanudacion) {
+                        htmlCajaLog = `
+                            <div class="log-alert-container shadow-sm" style="border-color: #22c55e !important; background-color: #f0fdf4 !important;" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Revisar y borrar alerta">
+                                <i class="fa-solid fa-truck-fast log-alert-icon" style="color: #16a34a;"></i>
+                                <div class="log-alert-text" style="color: #15803d;">¡UNIDAD EN MOVIMIENTO!</div>
+                            </div>`;
+                    }
 
                     let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
                     let optionsHtml = `
@@ -1017,7 +1389,7 @@ function renderizarBitacora() {
                     let cDestino = arrDests[cIdx] || v.destino || "";
                     if (isTripFullyFinished) { cOrigen = v.origen || ""; cDestino = arrDests[totDests - 1] || v.destino || ""; }
 
-                    // PUNTO 3: SEMÁFORO DIGERIDO CON DÍAS Y HORAS
+                    // SEMÁFORO DIGERIDO CON DÍAS Y HORAS
                     let semaforoHtml = '';
                     if(v.t_programada) {
                         let pTime = new Date(v.t_programada);
@@ -1202,26 +1574,47 @@ function inyectarGPSenTabla() {
                 registrarLog(vId, "Alerta GPS", "Conexión recuperada");
             }
 
+            let safeName = uData ? uData.name : "Desconocida";
+
+            // LÓGICA DE PARADAS Y REANUDACIONES (ANTI-FALSAS ALARMAS)
             if(!isExternal && !isLost && !isStale) {
+                let zonaGeo = resolverGeocerca(pos.y, pos.x) || uData.zonaOficial;
+                let cOrigen = limpiarStr(v.origen);
+                let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
+                let cDestino = limpiarStr(arrDests[v.destino_idx || 0] || v.destino);
+
+                let isNotInGeofence = true;
+                if (zonaGeo) {
+                    let z = limpiarStr(zonaGeo);
+                    if (z.includes(cOrigen) || z.includes(cDestino)) isNotInGeofence = false;
+                }
+
                 if(v.t_salida && !v.t_arribo) {
                     if (speed < 4) { 
                         if (!v.t_parada_inicio) {
                             db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
                         } else {
                             let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
-                            if (minsDetenido >= 5 && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
-                                db.ref('viajes_activos/'+vId+'/alerta_detenida').set(true);
-                                db.ref('viajes_activos/'+vId+'/estatus').set('s2'); 
-                                registrarLog(vId, "Sistema Automático", "Unidad detenida por más de 5 minutos");
-                                mostrarNotificacion(`⚠️ ¡ALERTA! La unidad ${uData.name} lleva 5 minutos detenida.`);
+                            if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
+                                db.ref('viajes_activos/'+vId).update({
+                                    alerta_detenida: true,
+                                    estatus: 's2' // Auto-estatus a 1.1 PARADO
+                                }); 
+                                registrarLog(vId, "Sistema Automático", "Cambió estatus a 1.1 PARADO (Detenida > 5 min)");
+                                enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min');
                             }
                         }
                     } else { 
                         if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
-                        if (v.estatus === 's2') {
-                            db.ref('viajes_activos/'+vId+'/estatus').set('s1'); 
-                            registrarLog(vId, "Sistema Automático", "Movimiento reanudado");
-                            mostrarNotificacion(`✅ La unidad ${uData.name} retomó su ruta.`);
+                        
+                        if (v.estatus === 's2' || v.alerta_detenida) {
+                            db.ref('viajes_activos/'+vId).update({
+                                alerta_detenida: null,
+                                alerta_reanudacion: true, // Alerta verde
+                                estatus: 's1' // Auto-estatus a 1. Ruta
+                            }); 
+                            registrarLog(vId, "Sistema Automático", "Cambió estatus a 1. Ruta (Movimiento reanudado)");
+                            enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
                         }
                     }
                 }
@@ -1252,7 +1645,6 @@ function inyectarGPSenTabla() {
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell) { 
                 if (isExternal) { 
-                    // PUNTO 1: Falso GPS y link azul interactivo
                     let timeExtHover = v.t_ubicacion_manual ? formatTimeFriendly(v.t_ubicacion_manual) : '--:--';
                     let timeExtAgo = v.t_ubicacion_manual ? timeAgo(Math.floor(v.t_ubicacion_manual/1000)) : '--';
                     
@@ -1288,7 +1680,7 @@ function inyectarGPSenTabla() {
                                 <div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}"><span class="${timeColor}">(${timeAgo(pos.t)})</span></div>
                             </div>
                             <div class="d-flex align-items-center w-100">
-                                <a href="https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
+                                <a href="https://maps.google.com/?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
                                     <div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div>
                                 </a>
                             </div>
