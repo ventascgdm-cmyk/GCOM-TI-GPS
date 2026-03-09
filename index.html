@@ -110,9 +110,12 @@
 <div class="modal fade" id="modalHubSeguridad" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <div class="modal-header bg-danger text-white border-0 py-3">
+            <div class="modal-header bg-danger text-white border-0 py-3 d-flex justify-content-between align-items-center w-100">
                 <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-shield-halved me-2"></i> HUB DE SEGURIDAD (Auditoría C4)</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div>
+                    <button class="btn btn-sm btn-light fw-bold text-dark me-3 shadow-sm" onclick="abrirHistorialHubs()"><i class="fa-solid fa-clock-rotate-left text-primary me-1"></i> Historial Global</button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
             </div>
             <div class="modal-body bg-light p-3">
                 <p class="text-muted fw-bold mb-3" style="font-size:0.8rem;">Justifica los movimientos de las unidades. Estas confirmaciones se guardarán permanentemente en el historial log con tu usuario.</p>
@@ -125,13 +128,30 @@
 <div class="modal fade" id="modalHubLogistico" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <div class="modal-header bg-primary text-white border-0 py-3">
+            <div class="modal-header bg-primary text-white border-0 py-3 d-flex justify-content-between align-items-center w-100">
                 <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-box-open me-2"></i> HUB LOGÍSTICO (Rutas y Geocercas)</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div>
+                    <button class="btn btn-sm btn-light fw-bold text-dark me-3 shadow-sm" onclick="abrirHistorialHubs()"><i class="fa-solid fa-clock-rotate-left text-primary me-1"></i> Historial Global</button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
             </div>
             <div class="modal-body bg-light p-3">
                 <p class="text-muted fw-bold mb-3" style="font-size:0.8rem;">Confirma o descarta las llegadas y salidas de clientes para mantener las bitácoras exactas.</p>
                 <div id="listaHubLogistico" class="d-flex flex-column gap-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorialHubs" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white border-0 py-3">
+                <h6 class="modal-title fw-bold m-0"><i class="fa-solid fa-clock-rotate-left me-2"></i> HISTORIAL GLOBAL DE AUDITORÍA</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-3">
+                <div id="listaHistorialGlobal" class="d-flex flex-column gap-2"></div>
             </div>
         </div>
     </div>
