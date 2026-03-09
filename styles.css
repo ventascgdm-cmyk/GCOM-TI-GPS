@@ -151,5 +151,3 @@ body.dropdown-open .header-subcliente td { z-index: 0 !important; }
 
 /* OCULTAR EN CAPTURA */
 .oculto-en-captura { display: none !important; opacity: 0 !important; visibility: hidden !important; }
-
-
