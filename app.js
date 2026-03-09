@@ -499,9 +499,9 @@ function pintarGeocercasEnMapa() {
 // ============================================================================
 
 // --- SISTEMA CENTRALIZADO DE NOTIFICACIONES Y AUDITORÍA ---
-db.ref('notificaciones_pendientes').on('value', snap => {
-    let data = snap.val() || {}; 
-    alertasSeguridad = {}; 
+db.ref('notificaciones_pendientes').on('value', snap => { 
+    let data = snap.val() || {};  
+    alertasSeguridad = {};  
     alertasLogistica = {};
     
     Object.keys(data).forEach(k => { 
@@ -684,7 +684,60 @@ function rechazarNotificacion(id, isSeguridad) {
     else setTimeout(abrirHubLogistico, 100);
 }
 
-// --- ACCIONES SECUNDARIAS ---
+// --- NUEVA FUNCIÓN: HISTORIAL GLOBAL DE HUBS ---
+window.abrirHistorialHubs = function() {
+    let container = document.getElementById("listaHistorialGlobal");
+    container.innerHTML = '<div class="text-center p-4"><i class="fa-solid fa-spinner fa-spin fs-3 text-secondary"></i> Buscando registros...</div>';
+
+    // Ocultar los otros modales para que no se encimen
+    try { bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); } catch(e){}
+    try { bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); } catch(e){}
+
+    // Recopilar y unificar los logs de todos los viajes activos
+    let allLogs = [];
+    Object.values(viajesActivos).forEach(v => {
+        let uName = limpiarStr(v.unidadN || v.unidadFallback);
+        if (v.log) {
+            Object.values(v.log).forEach(l => {
+                // Filtramos solo las acciones que hizo el monitorista en los Hubs
+                if (l.act.includes("Confirmó") || l.act.includes("Justificó") || l.act.includes("Canceló") || l.act.includes("Descartó")) {
+                    allLogs.push({ ...l, unidad: uName });
+                }
+            });
+        }
+    });
+
+    // Ordenar del más reciente al más antiguo
+    allLogs.sort((a, b) => b.t - a.t);
+
+    // Tomar los últimos 100 movimientos para que sea rápido
+    let topLogs = allLogs.slice(0, 100);
+
+    if (topLogs.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center fw-bold p-4"><i class="fa-solid fa-folder-open fs-3 mb-2"></i><br>Aún no hay registros de auditoría procesados hoy.</div>';
+    } else {
+        let html = topLogs.map(l => {
+            let colorBorder = (l.act.includes("Canceló") || l.act.includes("Descartó")) ? "border-danger" : "border-success";
+            let icon = (l.act.includes("Canceló") || l.act.includes("Descartó")) ? "fa-xmark text-danger" : "fa-check text-success";
+            return `
+            <div class="bg-white p-2 rounded shadow-sm border-start border-4 ${colorBorder} mb-2" style="font-size:0.8rem;">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1">
+                    <span class="fw-bold text-dark" style="font-size:0.85rem;"><i class="fa-solid fa-truck text-secondary me-1"></i> ${l.unidad}</span>
+                    <span class="text-muted" style="font-size:0.7rem;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(l.t)}</span>
+                </div>
+                <div>
+                    <b class="text-primary"><i class="fa-solid fa-user-shield"></i> ${l.usr}:</b> <span class="fw-bold"><i class="fa-solid ${icon}"></i> ${l.act}</span>
+                    <div class="text-muted mt-1 fst-italic" style="background:#f8fafc; padding:4px; border-radius:4px; border:1px dashed #cbd5e1;">${l.det || 'Sin detalles'}</div>
+                </div>
+            </div>`;
+        }).join('');
+        container.innerHTML = html;
+    }
+
+    new bootstrap.Modal(document.getElementById('modalHistorialHubs')).show();
+};
+
+
 // --- ACCIONES SECUNDARIAS ---
 function cambiarEstatus(val, vId) { 
     let v = viajesActivos[vId]; 
@@ -1375,9 +1428,6 @@ function guardarEdicionViaje() {
         try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} 
     }); 
 }
-// ============================================================================
-// PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON
-// ============================================================================
 
 // ============================================================================
 // PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON
@@ -2303,13 +2353,3 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
-
-
-
-
-
-
-
-
-
-
