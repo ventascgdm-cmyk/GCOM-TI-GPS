@@ -1605,21 +1605,27 @@ function renderizarBitacora() {
                         let diffMins = Math.floor((msRef - v.t_programada) / 60000);
                         let diffStr = formatTimeDiff(diffMins);
 
-                        let sClass = "semaforo-verde"; let sText = ""; let sIcon = "fa-circle-check";
-                        if (diffMins > 20) { 
-                            sClass = "semaforo-rojo"; sText = `Retraso: ${diffStr}`; sIcon = "fa-circle-xmark"; 
-                        } else if (diffMins > 0) { 
-                            sClass = "semaforo-amarillo"; sText = `Retraso: ${diffStr}`; sIcon = "fa-triangle-exclamation"; 
-                        } else { 
-                            if (!v.t_salida) {
+                        if (!v.t_salida) {
+                            // SI AÚN NO SALE: Muestra la cápsula completa
+                            let sClass = "semaforo-verde"; let sText = ""; let sIcon = "fa-clock";
+                            if (diffMins > 20) { 
+                                sClass = "semaforo-rojo"; sText = `Retraso: ${diffStr}`; sIcon = "fa-circle-xmark"; 
+                            } else if (diffMins > 0) { 
+                                sClass = "semaforo-amarillo"; sText = `Retraso: ${diffStr}`; sIcon = "fa-triangle-exclamation"; 
+                            } else { 
                                 sClass = "semaforo-verde"; sText = `Faltan: ${diffStr}`; sIcon = "fa-clock";
+                            }
+                            semaforoHtml = `<div class="badge-semaforo ${sClass}" title="⌚ HORA PROGRAMADA: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${sText}</div>`;
+                        } else {
+                            // SI YA SALIÓ A RUTA: Muestra solo un ícono leve
+                            if (diffMins > 0) {
+                                // Salió tarde (Ícono Rojo)
+                                semaforoHtml = `<i class="fa-solid fa-circle-exclamation text-danger fs-6 mb-1" title="Salió tarde por ${diffStr} (Prog: ${pTimeStr})" style="cursor:help;"></i>`;
                             } else {
-                                sClass = "semaforo-verde"; sText = `Adelantado: ${diffStr}`; sIcon = "fa-rocket";
+                                // Salió a tiempo o adelantado (Ícono Verde)
+                                semaforoHtml = `<i class="fa-solid fa-circle-check text-success fs-6 mb-1" title="Salió a tiempo (Prog: ${pTimeStr})" style="cursor:help;"></i>`;
                             }
                         }
-
-                        // AQUÍ ESTÁ LA MAGIA: Solo mostramos el texto corto, y la hora exacta se va al "title" (popup)
-                        semaforoHtml = `<div class="badge-semaforo ${sClass}" title="⌚ HORA PROGRAMADA: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${sText}</div>`;
                     }
 
                     let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
@@ -2349,5 +2355,6 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
