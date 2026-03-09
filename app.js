@@ -1555,7 +1555,8 @@ function renderizarBitacora() {
                             }
                         }
 
-                        semaforoHtml = `<div class="badge-semaforo ${sClass}" title="Hora Programada: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${sText}</div>`;
+                        // AQUÍ ESTÁ LA MAGIA: Solo mostramos el texto corto, y la hora exacta se va al "title" (popup)
+                        semaforoHtml = `<div class="badge-semaforo ${sClass}" title="⌚ HORA PROGRAMADA: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${sText}</div>`;
                     }
 
                     let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
@@ -2266,6 +2267,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
