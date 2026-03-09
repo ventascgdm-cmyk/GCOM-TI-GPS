@@ -440,7 +440,7 @@ function pintarGeocercasEnMapa() {
 }
 
 // ============================================================================
-// PARTE 2: HUBS DE ALERTAS, CAPTURAS DE PANTALLA, WHATSAPP Y VIAJES
+// PARTE 2: HUBS DE ALERTAS, WHATSAPP, EDICIÓN Y CAPTURAS
 // ============================================================================
 
 // --- HUBS DE NOTIFICACIONES ---
@@ -457,9 +457,7 @@ db.ref('notificaciones_pendientes').on('value', snap => {
 window.enviarNotificacionPersistente = function(vId, unidadName, tipo, detalle) {
     let idLogico = vId + "_" + tipo; 
     db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { 
-        if(!snap.exists()) { 
-            db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); 
-        } 
+        if(!snap.exists()) { db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); } 
     });
 };
 
@@ -487,7 +485,7 @@ window.abrirHubSeguridad = function() {
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
                     <div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${escapeSafe(n.unidad)}</div>
-                    <div class="text-muted" style="font-size:0.8rem;">${escapeSafe(n.detalle)} (Sensor: ${formatTimeFriendly(n.t_evento)})</div>
+                    <div class="text-muted" style="font-size:0.8rem;">${escapeSafe(n.detalle)} (Sensor: ${formatTimeFriendly(n.t_evento/1000)})</div>
                 </div>
             </div>
             <textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="2" placeholder="Justificación o anotación..."></textarea>
@@ -511,7 +509,7 @@ window.abrirHubLogistico = function() {
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
                     <div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${escapeSafe(n.unidad)}</div>
-                    <div class="text-muted" style="font-size:0.8rem;">${escapeSafe(n.detalle)} (Sensor: ${formatTimeFriendly(n.t_evento)})</div>
+                    <div class="text-muted" style="font-size:0.8rem;">${escapeSafe(n.detalle)} (Sensor: ${formatTimeFriendly(n.t_evento/1000)})</div>
                 </div>
             </div>
             <textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="1" placeholder="Nota adicional (opcional)..."></textarea>
@@ -529,7 +527,7 @@ window.confirmarNotificacion = function(id, isSeguridad) {
     let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
     let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : "";
     if(isSeguridad && n.tipo === "PARADA" && !nota) return alert("⚠️ Escribe una justificación para la parada.");
-    let vId = n.vId; let detalleLog = `Sensor: ${formatTimeFriendly(n.t_evento)}`; if (nota) detalleLog += ` | Nota: ${nota}`;
+    let vId = n.vId; let detalleLog = `Sensor: ${formatTimeFriendly(n.t_evento/1000)}`; if (nota) detalleLog += ` | Nota: ${nota}`;
     
     if (n.tipo === "SALIDA") { db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); registrarLog(vId, 'Confirmó SALIDA', detalleLog); } 
     else if (n.tipo === "ARRIBO") { db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); registrarLog(vId, 'Confirmó ARRIBO', detalleLog); } 
@@ -546,22 +544,13 @@ window.rechazarNotificacion = function(id, isSeguridad) {
     let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; if(!n) return;
     let inputEl = document.getElementById('nota_hub_' + id); let nota = inputEl ? inputEl.value.trim() : ""; 
     let detalleLog = `Falsa Alarma`; if(nota) detalleLog += ` | Nota: ${nota}`;
-    
-    registrarLog(n.vId, `Rechazó alerta de ${n.tipo}`, detalleLog); 
-    db.ref('notificaciones_pendientes/' + id).remove(); 
-    mostrarNotificacion("🚫 Descartado."); 
-    
+    registrarLog(n.vId, `Rechazó alerta de ${n.tipo}`, detalleLog); db.ref('notificaciones_pendientes/' + id).remove(); mostrarNotificacion("🚫 Descartado."); 
     if(isSeguridad) setTimeout(window.abrirHubSeguridad, 100); else setTimeout(window.abrirHubLogistico, 100);
 };
 
-// --- ACCIONES SECUNDARIAS ---
-window.cambiarEstatus = function(val, vId) {
-    let txt = window.estatusData[val].nombre; 
-    registrarLog(vId, 'Cambió estatus a', txt); 
-    db.ref('viajes_activos/'+vId+'/estatus').set(val);
-};
+// --- ACCIONES Y WHATSAPP ---
+window.cambiarEstatus = function(val, vId) { let txt = window.estatusData[val].nombre; registrarLog(vId, 'Cambió estatus a', txt); db.ref('viajes_activos/'+vId+'/estatus').set(val); };
 
-// WHATSAPP REPARADO (Google Maps Format Correcto)
 window.enviarWA = function(vId) {
     let v = viajesActivos[vId]; if(!v) return;
     let uData = encontrarUnidad(v, vId); let nombreCamion = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
@@ -571,7 +560,6 @@ window.enviarWA = function(vId) {
     let cliName = (dataClientes[cliId] && dataClientes[cliId].nombre) ? dataClientes[cliId].nombre : "SIN CLIENTE";
     let subName = (dataClientes[cliId] && dataClientes[cliId].subclientes && dataClientes[cliId].subclientes[subId]) ? dataClientes[cliId].subclientes[subId].nombre : "";
     let subText = subName && subName !== "N/A" ? ` -> ${subName}` : '';
-    
     let addrText = v.ubicacion_manual || "Buscando..."; let locLink = addrText; let geoTextWA = "";
 
     if (pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined') {
@@ -579,135 +567,67 @@ window.enviarWA = function(vId) {
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
         if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        
-        // CORRECCIÓN LINK WA (Universal para iOS y Android)
-        locLink = `${addrText} \nhttps://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
+        locLink = `${addrText} \nhttps://maps.google.com/?q=${pos.y},${pos.x}`;
     }
     
     let arrDests = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
-    let cIdx = v.destino_idx || 0;
-    let cOrigen = v.origen_actual || v.origen || "N/A";
-    let cDestino = arrDests[cIdx] || v.destino || "N/A";
-
+    let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
     let text = `*GRUDICOM TI & GPS - REPORTE DE UNIDAD*\n\n🏢 *Cliente:* ${cliName}${subText}\n\n🚛 *Unidad:* ${nombreCamion}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n🛣️ *Ruta:* ${cOrigen} ➔ ${cDestino}\n🚦 *Estatus:* ${estNombre}\n⏱️ *Vel:* ${speed} km/h${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n_Reporte C4_`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank'); 
 };
 
 window.generarReporteGrupal = function(cId, sId, titulo) {
     if(!datosAgrupadosGlobal[cId] || !datosAgrupadosGlobal[cId][sId]) return;
-    let arrViajes = datosAgrupadosGlobal[cId][sId];
-    let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
-    
+    let arrViajes = datosAgrupadosGlobal[cId][sId]; let txt = `*GRUDICOM TI & GPS - REPORTE DE FLOTA*\n🏢 *${titulo}*\n\n`;
     arrViajes.forEach(({v, vId}) => {
         let uData = encontrarUnidad(v, vId); let name = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
         let est = window.estatusData[v.estatus]?.nombre || "En Trayecto"; let pos = uData ? uData.pos : null; let vel = pos ? pos.s : 0;
         let addrText = v.ubicacion_manual || "Manual"; let locLink = addrText; let geoTextWA = "";
-        
         if (pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined') {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
-            if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-            locLink = `https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}`;
+            if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`; locLink = `https://maps.google.com/?q=${pos.y},${pos.x}`;
         }
-        
         let arrDests = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
-        let cIdx = v.destino_idx || 0;
-        let cOrigen = v.origen_actual || v.origen || "N/A";
-        let cDestino = arrDests[cIdx] || v.destino || "N/A";
-        
+        let cIdx = v.destino_idx || 0; let cOrigen = v.origen_actual || v.origen || "N/A"; let cDestino = arrDests[cIdx] || v.destino || "N/A";
         txt += `🚛 *Unidad:* ${name}\n📦 *Contenedores:* ${v.contenedores||'N/A'}\n⏱️ *Vel:* ${vel} km/h\n🚦 *Estatus:* ${est}\n🏁 *Ruta:* ${cOrigen} ➔ ${cDestino}${geoTextWA}\n📍 *Ubicación:* ${locLink}\n\n`;
     });
-    
-    txt += `_Reporte C4_`; 
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
+    txt += `_Reporte C4_`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank');
 };
 
-// --- CAPTURA DE PANTALLA INTELIGENTE (RAYO BORRADOR) ---
+// --- CAPTURAS DE PANTALLA ---
 window.generarCapturaCliente = async function(cId, cliName) {
-    let tableWrap = document.getElementById('scrollContainer');
-    let allRows = document.querySelectorAll('#units-body tr');
-    let hiddenRows = [];
-    
-    allRows.forEach(r => {
-        if(!r.classList.contains(`client-group-${cId}`)) {
-            hiddenRows.push({el: r, display: r.style.display}); 
-            r.style.display = 'none';
-        }
-    });
-
-    // Ocultar columnas indeseadas para la foto
-    let colsToHide = document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .col-historial');
-    let originalDisplaysCols = [];
+    let tableWrap = document.getElementById('scrollContainer'); let allRows = document.querySelectorAll('#units-body tr'); let hiddenRows = [];
+    allRows.forEach(r => { if(!r.classList.contains(`client-group-${cId}`)) { hiddenRows.push({el: r, display: r.style.display}); r.style.display = 'none'; } });
+    let colsToHide = document.querySelectorAll('.col-operador, .col-alertas, .col-accion, .col-historial'); let originalDisplaysCols = [];
     colsToHide.forEach(el => { originalDisplaysCols.push({el: el, disp: el.style.display}); el.style.display = 'none'; });
     
     let oldHeight = tableWrap.style.height; let oldMaxHeight = tableWrap.style.maxHeight; let oldOverflow = tableWrap.style.overflow;
-    tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible';
-    let oldW = document.getElementById("mainTable").style.width; document.getElementById("mainTable").style.width = "max-content";
+    tableWrap.style.height = 'auto'; tableWrap.style.maxHeight = 'none'; tableWrap.style.overflow = 'visible'; let oldW = document.getElementById("mainTable").style.width; document.getElementById("mainTable").style.width = "max-content";
 
     await new Promise(r => setTimeout(r, 400));
-    
     try {
         let canvas = await html2canvas(document.getElementById('mainTable'), { scale: 2, backgroundColor: '#f1f5f9', useCORS: true });
-        
-        canvas.toBlob(function(blob) {
-            currentCaptureBlob = blob;
-            document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob);
-            new bootstrap.Modal(document.getElementById('modalPreviewCaptura')).show();
-        }, 'image/png');
-        
+        canvas.toBlob(function(blob) { currentCaptureBlob = blob; document.getElementById('imgPreviewCaptura').src = URL.createObjectURL(blob); new bootstrap.Modal(document.getElementById('modalPreviewCaptura')).show(); }, 'image/png');
     } catch(e) { console.error(e); alert("Error al generar captura de pantalla."); } 
     finally {
         tableWrap.style.height = oldHeight; tableWrap.style.maxHeight = oldMaxHeight; tableWrap.style.overflow = oldOverflow;
-        document.getElementById("mainTable").style.width = oldW;
-        hiddenRows.forEach(item => item.el.style.display = item.display);
-        colsToHide.forEach((el, i) => el.style.display = originalDisplaysCols[i].disp);
+        document.getElementById("mainTable").style.width = oldW; hiddenRows.forEach(item => item.el.style.display = item.display); colsToHide.forEach((el, i) => el.style.display = originalDisplaysCols[i].disp);
     }
 };
 
-window.descargarCaptura = function() {
-    if(!currentCaptureBlob) return;
-    let link = document.createElement('a'); link.download = `Estatus_Bitacora.png`;
-    link.href = URL.createObjectURL(currentCaptureBlob); link.click();
-};
+window.descargarCaptura = function() { if(!currentCaptureBlob) return; let link = document.createElement('a'); link.download = `Estatus_Bitacora.png`; link.href = URL.createObjectURL(currentCaptureBlob); link.click(); };
+window.copiarCaptura = async function() { if(!currentCaptureBlob) return; try { const item = new ClipboardItem({ "image/png": currentCaptureBlob }); await navigator.clipboard.write([item]); alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp Web (Ctrl+V)."); } catch (err) { alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); } };
+window.compartirCaptura = async function() { if(!currentCaptureBlob) return; if (navigator.share) { try { const file = new File([currentCaptureBlob], "Estatus.png", { type: "image/png" }); await navigator.share({ title: 'Estatus Bitácora', files: [file] }); } catch (err) { console.log("Share cancelado"); } } else { alert("Tu navegador no soporta compartir directo."); } };
 
-window.copiarCaptura = async function() {
-    if(!currentCaptureBlob) return;
-    try {
-        const item = new ClipboardItem({ "image/png": currentCaptureBlob });
-        await navigator.clipboard.write([item]);
-        alert("¡Imagen copiada! Ya puedes pegarla en WhatsApp Web (Ctrl+V).");
-    } catch (err) { alert("Tu navegador no permite copiar directo. Usa el botón Descargar."); }
-};
-
-window.compartirCaptura = async function() {
-    if(!currentCaptureBlob) return;
-    if (navigator.share) {
-        try {
-            const file = new File([currentCaptureBlob], "Estatus.png", { type: "image/png" });
-            await navigator.share({ title: 'Estatus Bitácora', files: [file] });
-        } catch (err) { console.log("Share cancelado"); }
-    } else { alert("Tu navegador no soporta compartir directo."); }
-};
-
-window.editarUbicacionManual = function(vId) {
-    let v = viajesActivos[vId]; if(!v) return;
-    let uName = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
-    let u = prompt(`Escribir ubicación manual para ${uName}:`, v.ubicacion_manual || '');
-    if(u !== null) { db.ref(`viajes_activos/${vId}/ubicacion_manual`).set(String(u).toUpperCase()); registrarLog(vId, 'Añadió Ubicación Manual', String(u).toUpperCase()); }
-};
-
-window.registrarLog = function(viajeId, accion, detalle = "") { 
-    let usrName = currentUser ? currentUser.nom : "Sistema"; 
-    db.ref(`viajes_activos/${viajeId}/log`).push({ t: Date.now(), usr: usrName, act: accion, det: detalle }); 
-};
-
-window.cerrarSesion = function() { localStorage.clear(); location.reload(); }
+window.editarUbicacionManual = function(vId) { let v = viajesActivos[vId]; if(!v) return; let uName = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase(); let u = prompt(`Escribir ubicación manual para ${uName}:`, v.ubicacion_manual || ''); if(u !== null) { db.ref(`viajes_activos/${vId}/ubicacion_manual`).set(String(u).toUpperCase()); registrarLog(vId, 'Añadió Ubicación Manual', String(u).toUpperCase()); } };
+window.registrarLog = function(viajeId, accion, detalle = "") { let usrName = currentUser ? currentUser.nom : "Sistema"; db.ref(`viajes_activos/${viajeId}/log`).push({ t: Date.now(), usr: usrName, act: accion, det: detalle }); };
+window.cerrarSesion = function() { localStorage.clear(); location.reload(); };
 
 window.finalizarViaje = function(id, n) { 
     if(confirm(`¿Archivar viaje de la unidad ${n} de forma permanente?`)) { 
         let v = viajesActivos[id];
         if(v && !v.t_fin) { db.ref('viajes_activos/'+id+'/t_fin').set(Date.now()); registrarLog(id, "Marcó FINALIZADO", "Automático"); }
-        registrarLog(id, "FINALIZÓ VIAJE", "Se archiva registro"); 
-        setTimeout(()=>db.ref('viajes_activos/'+id).remove(), 1000); 
+        registrarLog(id, "FINALIZÓ VIAJE", "Se archiva registro"); setTimeout(()=>db.ref('viajes_activos/'+id).remove(), 1000); 
     } 
 };
 
@@ -717,94 +637,49 @@ window.abrirModalLog = function(uId, uName) {
     let html = logsArr.map(l => `<div class="mb-2 border-bottom pb-1"><div style="font-size:0.65rem; color:#6c757d; font-weight:bold; margin-bottom:1px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(l.t)}</div><b class="text-dark">${l.usr}:</b> <span class="text-primary">${l.act}</span> <span class="text-muted">${l.det||''}</span></div>`).join('');
     document.getElementById("log_container").innerHTML = html || '<div class="text-muted text-center p-2 mt-3">Sin eventos.</div>'; new bootstrap.Modal(document.getElementById('modalLog')).show();
 };
+window.guardarLogManual = function() { let uId = document.getElementById("log_uid").value, txt = document.getElementById("log_txt").value.toUpperCase(); if(!txt) return; registrarLog(uId, "Agregó Nota", txt); try { bootstrap.Modal.getInstance(document.getElementById('modalLog')).hide(); } catch(e){} };
 
-window.guardarLogManual = function() {
-    let uId = document.getElementById("log_uid").value, txt = document.getElementById("log_txt").value.toUpperCase(); if(!txt) return;
-    registrarLog(uId, "Agregó Nota", txt); try { bootstrap.Modal.getInstance(document.getElementById('modalLog')).hide(); } catch(e){}
-};
-
-// --- LOGICA DE VIAJES MULTIPLES Y EDICION ---
+// --- EDICIÓN Y NUEVOS VIAJES (REPARADO EL MODAL DE EDICIÓN) ---
 window.prepararNuevoViaje = function() { 
-    let listCli = document.getElementById("list_clientes");
-    if(!listCli) { listCli = document.createElement('datalist'); listCli.id="list_clientes"; document.body.appendChild(listCli); }
+    let listCli = document.getElementById("list_clientes"); if(!listCli) { listCli = document.createElement('datalist'); listCli.id="list_clientes"; document.body.appendChild(listCli); }
     listCli.innerHTML = Object.keys(dataClientes).map(k => `<option value="${dataClientes[k].nombre}">`).join('');
-
-    let listSub = document.getElementById("list_subclientes");
-    if(!listSub) { listSub = document.createElement('datalist'); listSub.id="list_subclientes"; document.body.appendChild(listSub); }
-    let subHtml = ""; Object.values(dataClientes).forEach(c => { if(c.subclientes) Object.values(c.subclientes).forEach(s => subHtml += `<option value="${s.nombre}">`); });
-    listSub.innerHTML = subHtml;
-
-    document.getElementById("nv_cliente").value = ""; document.getElementById("nv_subcliente").value = "";
-    document.getElementById("nv_filas_container").innerHTML = "";
+    let listSub = document.getElementById("list_subclientes"); if(!listSub) { listSub = document.createElement('datalist'); listSub.id="list_subclientes"; document.body.appendChild(listSub); }
+    let subHtml = ""; Object.values(dataClientes).forEach(c => { if(c.subclientes) Object.values(c.subclientes).forEach(s => subHtml += `<option value="${s.nombre}">`); }); listSub.innerHTML = subHtml;
+    document.getElementById("nv_cliente").value = ""; document.getElementById("nv_subcliente").value = ""; document.getElementById("nv_filas_container").innerHTML = "";
     agregarFilaNV(); 
 };
 
 let filaContador = 0;
 window.agregarFilaNV = function() {
-    filaContador++;
-    let isExterna = document.getElementById("nv_externa") ? document.getElementById("nv_externa").checked : false;
-    let div = document.createElement("div");
-    div.className = "bg-white border rounded p-2 mb-2 nv-fila position-relative shadow-sm";
-    div.innerHTML = `
-        <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 px-2 py-0 rounded" onclick="this.parentElement.remove()" title="Quitar Unidad"><i class="fa-solid fa-xmark"></i></button>
-        <div class="row gx-2 mt-1">
-            <div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">UNIDAD GPS</label><input type="text" class="form-control form-control-sm border-primary fw-bold text-uppercase nv-unidad" list="listaUnidadesTotales" placeholder="Buscar unidad..." oninput="autofillOp(this)"></div>
-            <div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">ORIGEN</label><input type="text" class="form-control form-control-sm text-uppercase nv-origen" list="listaGeocercas" placeholder="Escribir o elegir..."></div>
-            <div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">DESTINO(S)</label><input type="text" class="form-control form-control-sm text-uppercase nv-destino" placeholder="Ej. Laredo, MTY, GDL..."></div>
-        </div>
-        <div class="row gx-2 mt-2 nv-operador-row" style="display:${isExterna ? 'flex' : 'none'};">
-            <div class="col-12"><input type="text" class="form-control form-control-sm text-uppercase nv-operador" list="listaConductores" placeholder="Nombre de Operador (Requerido para manuales)"></div>
-        </div>
-    `;
+    filaContador++; let isExterna = document.getElementById("nv_externa") ? document.getElementById("nv_externa").checked : false; let div = document.createElement("div"); div.className = "bg-white border rounded p-2 mb-2 nv-fila position-relative shadow-sm";
+    div.innerHTML = `<button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 px-2 py-0 rounded" onclick="this.parentElement.remove()" title="Quitar Unidad"><i class="fa-solid fa-xmark"></i></button><div class="row gx-2 mt-1"><div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">UNIDAD GPS</label><input type="text" class="form-control form-control-sm border-primary fw-bold text-uppercase nv-unidad" list="listaUnidadesTotales" placeholder="Buscar unidad..." oninput="autofillOp(this)"></div><div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">ORIGEN</label><input type="text" class="form-control form-control-sm text-uppercase nv-origen" list="listaGeocercas" placeholder="Escribir o elegir..."></div><div class="col-4"><label style="font-size:0.65rem;" class="fw-bold text-muted mb-1">DESTINO(S)</label><input type="text" class="form-control form-control-sm text-uppercase nv-destino" placeholder="Ej. Laredo, MTY, GDL..."></div></div><div class="row gx-2 mt-2 nv-operador-row" style="display:${isExterna ? 'flex' : 'none'};"><div class="col-12"><input type="text" class="form-control form-control-sm text-uppercase nv-operador" list="listaConductores" placeholder="Nombre de Operador (Requerido para manuales)"></div></div>`;
     document.getElementById("nv_filas_container").appendChild(div);
 };
 
-window.autofillOp = function(inputEl) {
-    let uN = inputEl.value.toUpperCase(); let opInput = inputEl.parentElement.parentElement.nextElementSibling.querySelector('.nv-operador');
-    if(opInput && (ramDrivers[uN] || dbOperadores[uN])) { opInput.value = ramDrivers[uN] || dbOperadores[uN]; }
-};
+window.autofillOp = function(inputEl) { let uN = inputEl.value.toUpperCase(); let opInput = inputEl.parentElement.parentElement.nextElementSibling.querySelector('.nv-operador'); if(opInput && (ramDrivers[uN] || dbOperadores[uN])) { opInput.value = ramDrivers[uN] || dbOperadores[uN]; } };
 
 function getClienteIdByName(name) { let found = Object.keys(dataClientes).find(k => String(dataClientes[k].nombre).toUpperCase() === String(name).toUpperCase()); return found || name; }
 function getSubclienteIdByName(cliId, subName) { if(dataClientes[cliId] && dataClientes[cliId].subclientes) { let found = Object.keys(dataClientes[cliId].subclientes).find(k => String(dataClientes[cliId].subclientes[k].nombre).toUpperCase() === String(subName).toUpperCase()); return found || subName; } return subName; }
 
 window.registrarViajesMultiples = function() {
-    let cliName = document.getElementById("nv_cliente").value.trim().toUpperCase();
-    let subName = document.getElementById("nv_subcliente").value.trim().toUpperCase();
-    if(!cliName) return alert("Debes poner el nombre del Cliente.");
-
+    let cliName = document.getElementById("nv_cliente").value.trim().toUpperCase(); let subName = document.getElementById("nv_subcliente").value.trim().toUpperCase(); if(!cliName) return alert("Debes poner el nombre del Cliente.");
     let cId = getClienteIdByName(cliName); let sId = getSubclienteIdByName(cId, subName);
-
     if(cId === cliName && cliName !== "") { let ref = db.ref('clientes').push({nombre: cliName, logo: ""}); cId = ref.key; }
     if(sId === subName && subName !== "") { let ref = db.ref('clientes/'+cId+'/subclientes').push({nombre: subName}); sId = ref.key; }
     if(subName === "") sId = "N/A";
-
-    let isExterna = document.getElementById("nv_externa").checked;
-    let filas = document.querySelectorAll(".nv-fila");
-    if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
+    let isExterna = document.getElementById("nv_externa").checked; let filas = document.querySelectorAll(".nv-fila"); if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
     
     let batchPromises = [];
     filas.forEach(fila => {
-        let uInput = fila.querySelector(".nv-unidad").value.trim().toUpperCase(); 
-        let opInput = fila.querySelector(".nv-operador").value.trim().toUpperCase();
-        let origen = fila.querySelector(".nv-origen").value.trim().toUpperCase();
-        let destino = fila.querySelector(".nv-destino").value.trim().toUpperCase();
-        if(!uInput) return;
-        
-        let wId = "EXTERNO";
-        if (!isExterna) { let nNorm = uInput.replace(/[\s\-]/g, ""); for(let k in unidadesGlobales){ if(String(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { wId = k; uInput = unidadesGlobales[k].name; break; } } }
-        
+        let uInput = fila.querySelector(".nv-unidad").value.trim().toUpperCase(); let opInput = fila.querySelector(".nv-operador").value.trim().toUpperCase(); let origen = fila.querySelector(".nv-origen").value.trim().toUpperCase(); let destino = fila.querySelector(".nv-destino").value.trim().toUpperCase(); if(!uInput) return;
+        let wId = "EXTERNO"; if (!isExterna) { let nNorm = uInput.replace(/[\s\-]/g, ""); for(let k in unidadesGlobales){ if(String(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { wId = k; uInput = unidadesGlobales[k].name; break; } } }
         let refPush = db.ref('viajes_activos').push();
-        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destino: destino, estatus: "s1", operador: opInput, unidadFallback: uInput, unidadN: uInput }).then(() => {
-            registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS");
-        });
-        batchPromises.push(p);
+        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destino: destino, estatus: "s1", operador: opInput, unidadFallback: uInput, unidadN: uInput }).then(() => { registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS"); }); batchPromises.push(p);
     });
-    
-    Promise.all(batchPromises).then(() => {
-        try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){}
-    });
+    Promise.all(batchPromises).then(() => { try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){} });
 };
 
+// FIX EDITAR VIAJE: Instancia segura del Modal para evitar que se bloquee
 window.abrirEdicionViaje = function(uId, uName) { 
     let v = viajesActivos[uId]; if(!v) return; 
     document.getElementById("edU_id").value = uId; document.getElementById("edU_name").innerText = uName; 
@@ -814,13 +689,16 @@ window.abrirEdicionViaje = function(uId, uName) {
     let sName = (v.subcliente && v.subcliente !== "N/A" && dataClientes[v.cliente] && dataClientes[v.cliente].subclientes && dataClientes[v.cliente].subclientes[v.subcliente]) ? dataClientes[v.cliente].subclientes[v.subcliente].nombre : "";
     
     document.getElementById("ed_cliente").value = cName; document.getElementById("ed_subcliente").value = sName; 
-    new bootstrap.Modal(document.getElementById('modalEditarViaje')).show(); 
+    
+    let modalEl = document.getElementById('modalEditarViaje');
+    let modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (!modalInstance) modalInstance = new bootstrap.Modal(modalEl);
+    modalInstance.show(); 
 };
 
 window.guardarEdicionViaje = function() { 
     let uId = document.getElementById("edU_id").value; 
-    let cliName = document.getElementById("ed_cliente").value.trim().toUpperCase();
-    let subName = document.getElementById("ed_subcliente").value.trim().toUpperCase();
+    let cliName = document.getElementById("ed_cliente").value.trim().toUpperCase(); let subName = document.getElementById("ed_subcliente").value.trim().toUpperCase();
     let cId = getClienteIdByName(cliName); let sId = getSubclienteIdByName(cId, subName);
 
     if(cId === cliName && cliName !== "") { let ref = db.ref('clientes').push({nombre: cliName, logo: ""}); cId = ref.key; }
@@ -828,29 +706,24 @@ window.guardarEdicionViaje = function() {
     if(cliName === "") cId = "Sin_Cliente"; if(subName === "") sId = "N/A";
 
     registrarLog(uId, "Editó Datos", "Rutas/Cliente"); 
-    db.ref('viajes_activos/' + uId).update({ cliente: cId, subcliente: sId, origen: document.getElementById("ed_origen").value.toUpperCase(), destino: document.getElementById("ed_destino").value.toUpperCase(), operador: document.getElementById("ed_operador").value.toUpperCase() }).then(() => { try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} }); 
+    db.ref('viajes_activos/' + uId).update({ cliente: cId, subcliente: sId, origen: document.getElementById("ed_origen").value.toUpperCase(), destino: document.getElementById("ed_destino").value.toUpperCase(), operador: document.getElementById("ed_operador").value.toUpperCase() }).then(() => { 
+        try{
+            let modalEl = document.getElementById('modalEditarViaje');
+            let modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if(modalInstance) modalInstance.hide();
+        }catch(e){} 
+    }); 
 };
 
 window.avanzarMultiDestino = function(vId) {
-    let v = viajesActivos[vId];
-    if (!v) return;
-    
+    let v = viajesActivos[vId]; if (!v) return;
     let destinosArray = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
-    let totalDests = destinosArray.length || 1;
-    let currentIdx = v.destino_idx || 0;
-    let now = Date.now();
+    let totalDests = destinosArray.length || 1; let currentIdx = v.destino_idx || 0; let now = Date.now();
     
     if (currentIdx < totalDests - 1) {
-        let updates = {};
-        registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, destinosArray[currentIdx]);
-        
-        updates['destino_idx'] = currentIdx + 1;
-        updates['origen_actual'] = destinosArray[currentIdx]; // El nuevo origen es donde acaba de terminar
-        updates['t_salida'] = now; // Auto-inicia la siguiente etapa
-        updates['t_arribo'] = null; // Limpia para la siguiente etapa
-        updates['t_fin'] = null; // Limpia para la siguiente etapa
-        updates['is_transit'] = true; // Flag visual para el color naranja
-        
+        let updates = {}; registrarLog(vId, `Terminó Destino ${currentIdx + 1}`, destinosArray[currentIdx]);
+        updates['destino_idx'] = currentIdx + 1; updates['origen_actual'] = destinosArray[currentIdx];
+        updates['t_salida'] = now; updates['t_arribo'] = null; updates['t_fin'] = null; updates['is_transit'] = true; 
         db.ref(`viajes_activos/${vId}`).update(updates);
     }
 };
@@ -859,213 +732,121 @@ window.construirBotonHorario = function(vId, timestampStr, dbField, textoVacio, 
     let colorFinal = isTransit ? 'warning' : claseColor;
     let onClk = onClickOverride ? onClickOverride : `registrarLog('${vId}', 'Marcó ${textoVacio}'); db.ref('viajes_activos/${vId}/${dbField}').set(Date.now());`;
 
-    if(!timestampStr) {
-        return `<button class="btn btn-sm w-100 bg-white text-${colorFinal} shadow-sm" style="font-size:0.6rem; font-weight:800; padding:2px 0; margin-bottom:2px; border: 1px dashed var(--bs-${colorFinal});" onclick="${onClk}">${textoVacio}</button>`;
-    } else {
+    if(!timestampStr) { return `<button class="btn btn-sm w-100 bg-white text-${colorFinal} shadow-sm" style="font-size:0.6rem; font-weight:800; padding:2px 0; margin-bottom:2px; border: 1px dashed var(--bs-${colorFinal});" onclick="${onClk}">${textoVacio}</button>`; } 
+    else {
         let displayDate = formatearFechaElegante(timestampStr);
-        return `<div class="position-relative w-100 cp" style="margin-bottom:2px;" title="Clic para editar">
-                    <div class="d-flex align-items-center rounded shadow-sm border border-${colorFinal}" style="overflow: hidden; height:18px; background: rgba(255,255,255,0.5);">
-                        <span class="bg-${colorFinal} text-white fw-bold text-center d-flex align-items-center justify-content-center" style="font-size:0.55rem; width:18px; height:100%;">${textoVacio.charAt(0)}</span>
-                        <span class="fw-bold text-center w-100 text-${colorFinal}" style="font-size:0.6rem; line-height:18px;">${displayDate}</span>
-                    </div>
-                    <input type="datetime-local" class="position-absolute top-0 start-0 w-100 h-100 cp" style="opacity: 0;" value="${getLocalISO(timestampStr)}" onclick="this.showPicker()" onchange="let d=new Date(this.value).getTime(); if(d){ db.ref('viajes_activos/${vId}/${dbField}').set(d); registrarLog('${vId}', 'Modificó horario de ${textoVacio}'); }">
-                </div>`;
+        return `<div class="position-relative w-100 cp" style="margin-bottom:2px;" title="Clic para editar"><div class="d-flex align-items-center rounded shadow-sm border border-${colorFinal}" style="overflow: hidden; height:18px; background: rgba(255,255,255,0.5);"><span class="bg-${colorFinal} text-white fw-bold text-center d-flex align-items-center justify-content-center" style="font-size:0.55rem; width:18px; height:100%;">${textoVacio.charAt(0)}</span><span class="fw-bold text-center w-100 text-${colorFinal}" style="font-size:0.6rem; line-height:18px;">${displayDate}</span></div><input type="datetime-local" class="position-absolute top-0 start-0 w-100 h-100 cp" style="opacity: 0;" value="${getLocalISO(timestampStr)}" onclick="this.showPicker()" onchange="let d=new Date(this.value).getTime(); if(d){ db.ref('viajes_activos/${vId}/${dbField}').set(d); registrarLog('${vId}', 'Modificó horario de ${textoVacio}'); }"></div>`;
     }
 };
 
-// --- FIN DE LA PARTE 2 ---
-
-
 // ============================================================================
-// PARTE 3: RENDERIZADO DE TABLA, BÚSQUEDA Y MOTOR GPS DE WIALON
+// PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON API
 // ============================================================================
 
 window.renderizarBitacora = function() {
     if (UI_PAUSED) return; 
-    
-    const tbody = document.getElementById('units-body'); let html = "";
-    let tree = { "Sin_Cliente": { "N/A": [] } };
+    const tbody = document.getElementById('units-body'); let html = ""; let tree = { "Sin_Cliente": { "N/A": [] } };
     
     try {
         Object.keys(dataClientes).forEach(cId => { tree[cId] = { "N/A": [] }; if(dataClientes[cId].subclientes) Object.keys(dataClientes[cId].subclientes).forEach(sId => tree[cId][sId] = []); });
-        Object.keys(viajesActivos).forEach(vId => { 
-            let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; 
-            let cId = String(v.cliente || "Sin_Cliente"); let sId = String(v.subcliente || "N/A"); 
-            if(!tree[cId]) tree[cId] = { "N/A": [] }; if(!tree[cId][sId]) tree[cId][sId] = []; 
-            tree[cId][sId].push({vId, v}); 
-        });
+        Object.keys(viajesActivos).forEach(vId => { let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; let cId = String(v.cliente || "Sin_Cliente"); let sId = String(v.subcliente || "N/A"); if(!tree[cId]) tree[cId] = { "N/A": [] }; if(!tree[cId][sId]) tree[cId][sId] = []; tree[cId][sId].push({vId, v}); });
         datosAgrupadosGlobal = tree; 
 
         for(let cId in tree) {
             let cliName = "SIN CLIENTE"; if (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].nombre) cliName = dataClientes[cId].nombre;
-            
-            let hasClientUnits = false;
-            for(let sId in tree[cId]) { if(tree[cId][sId].length > 0) { hasClientUnits = true; break; } }
+            let hasClientUnits = false; for(let sId in tree[cId]) { if(tree[cId][sId].length > 0) { hasClientUnits = true; break; } }
             if(!hasClientUnits) continue;
 
-            let logoHtml = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo" title="${cliName}">` : `<span class="align-middle text-uppercase">${cliName}</span>`;
-            
-            let clientActions = cId !== "Sin_Cliente" ? `
-                <div class="dropdown position-absolute end-0 me-3">
-                    <button class="btn btn-sm text-white" type="button" data-bs-toggle="dropdown" title="Acciones de Cliente"><i class="fa-solid fa-ellipsis-vertical fs-5"></i></button>
-                    <ul class="dropdown-menu shadow-lg border-0 rounded-3">
-                        <li><a class="dropdown-item fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${cliName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura Estatus</a></li>
-                        <li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', 'N/A', '${cliName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte WhatsApp</a></li>
-                    </ul>
-                </div>` : '';
-            
-            let clientTitleHtml = `
-                <div class="d-flex align-items-center justify-content-center w-100 position-relative">
-                    ${logoHtml}
-                    ${clientActions}
-                </div>
-            `;
-            
+            let safeCliName = escapeSafe(cliName);
+            let logoHtml = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo" title="${safeCliName}">` : `<span class="align-middle text-uppercase">${safeCliName}</span>`;
+            let clientActions = cId !== "Sin_Cliente" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-white" type="button" data-bs-toggle="dropdown" title="Acciones de Cliente"><i class="fa-solid fa-ellipsis-vertical fs-5"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3"><li><a class="dropdown-item fw-bold text-dark cp" onclick="generarCapturaCliente('${cId}', '${safeCliName}')"><i class="fa-solid fa-camera me-2 text-primary"></i> Captura Estatus</a></li><li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', 'N/A', '${safeCliName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte WhatsApp</a></li></ul></div>` : '';
+            let clientTitleHtml = `<div class="d-flex align-items-center justify-content-center w-100 position-relative">${logoHtml}${clientActions}</div>`;
             html += `<tr class="header-cliente shadow-sm client-group-${cId}" data-client="${cId}"><td colspan="${colOrder.length}">${clientTitleHtml}</td></tr>`;
 
             for(let sId in tree[cId]) {
                 if(tree[cId][sId].length === 0) continue;
                 let subName = ""; if (sId !== "N/A" && dataClientes[cId] && dataClientes[cId].subclientes && dataClientes[cId].subclientes[sId]) subName = dataClientes[cId].subclientes[sId].nombre || "";
-                
-                let logoHtmlSub = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo-sub" title="${cliName}">` : '';
-                
-                let subclientActions = sId !== "N/A" ? `
-                    <div class="dropdown position-absolute end-0 me-3">
-                        <button class="btn btn-sm text-dark" type="button" data-bs-toggle="dropdown"><i class="fa-solid fa-ellipsis-vertical fs-6"></i></button>
-                        <ul class="dropdown-menu shadow-lg border-0 rounded-3">
-                            <li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', '${sId}', '${cliName} -> ${subName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte Subcliente</a></li>
-                        </ul>
-                    </div>` : '';
-                
-                if(sId !== "N/A" && subName !== "") {
-                    html += `<tr class="header-subcliente client-group-${cId}"><td colspan="${colOrder.length}">
-                        <div class="d-flex justify-content-center align-items-center position-relative w-100">
-                            <div class="d-flex align-items-center text-uppercase">↳ ${logoHtmlSub} SUBCLIENTE: ${subName}</div>
-                            ${subclientActions}
-                        </div>
-                    </td></tr>`;
-                }
+                let safeSubName = escapeSafe(subName);
+                let logoHtmlSub = (cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].logo) ? `<img src="${dataClientes[cId].logo}" class="client-logo-sub" title="${safeCliName}">` : '';
+                let subclientActions = sId !== "N/A" ? `<div class="dropdown position-absolute end-0 me-3"><button class="btn btn-sm text-dark" type="button" data-bs-toggle="dropdown"><i class="fa-solid fa-ellipsis-vertical fs-6"></i></button><ul class="dropdown-menu shadow-lg border-0 rounded-3"><li><a class="dropdown-item fw-bold text-success cp" onclick="generarReporteGrupal('${cId}', '${sId}', '${safeCliName} -> ${safeSubName}')"><i class="fa-brands fa-whatsapp me-2"></i> Reporte Subcliente</a></li></ul></div>` : '';
+                if(sId !== "N/A" && subName !== "") { html += `<tr class="header-subcliente client-group-${cId}"><td colspan="${colOrder.length}"><div class="d-flex justify-content-center align-items-center position-relative w-100"><div class="d-flex align-items-center text-uppercase">↳ ${logoHtmlSub} SUBCLIENTE: ${safeSubName}</div>${subclientActions}</div></td></tr>`; }
                 
                 html += getHeadersRow(cId);
-
                 tree[cId][sId].sort((a, b) => { let estA = String(a.v.estatus || ""); let estB = String(b.v.estatus || ""); return estA.localeCompare(estB); });
 
                 tree[cId][sId].forEach(({vId, v}) => {
                     try {
                         let nombreCamion = String(v.unidadN || v.unidadFallback || "Desconocida").trim().toUpperCase();
+                        let safeCamionName = escapeSafe(nombreCamion);
                         let isExternal = v.wialonId === "EXTERNO"; 
                         let colEstatus = window.estatusData[v.estatus]?.col || '#0f172a';
 
                         let logsObj = v.log || {}; let logsArr = Object.values(logsObj).sort((a,b)=>b.t - a.t);
-                        let lastLog = logsArr.length > 0 ? 
-                            `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center">
-                                <div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${nombreCamion}')"></i></div>
-                                <div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;">
-                                    <b class="text-primary">${String(logsArr[0].usr)}:</b> <span class="text-dark fw-bold">${String(logsArr[0].act)}</span>
-                                    <div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${String(logsArr[0].det||'')}">${String(logsArr[0].det||'')}</div>
-                                </div>
-                            </div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
+                        let lastLog = logsArr.length > 0 ? `<div class="text-start w-100 d-flex flex-column h-100 justify-content-center"><div style="font-size:0.6rem; color:#64748b; font-weight:800; margin-bottom:2px;"><i class="fa-regular fa-calendar text-primary"></i> ${formatearFechaElegante(logsArr[0].t)} <i class="fa-solid fa-magnifying-glass-plus ms-1 text-primary cp" title="Ver Historial Completo" onclick="abrirModalLog('${vId}', '${safeCamionName}')"></i></div><div class="bg-white border rounded shadow-sm p-1" style="border-left: 3px solid var(--accent) !important; font-size:0.65rem; line-height:1.2;"><b class="text-primary">${escapeSafe(String(logsArr[0].usr))}:</b> <span class="text-dark fw-bold">${escapeSafe(String(logsArr[0].act))}</span><div class="text-muted text-truncate mt-1" style="max-width:100%;" title="${escapeSafe(String(logsArr[0].det||''))}">${escapeSafe(String(logsArr[0].det||''))}</div></div></div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
 
                         let searchData = `${nombreCamion} ${v.origen||''} ${v.destino||''} ${v.contenedores||''} ${v.operador||''} ${cliName} ${subName} ${window.estatusData[v.estatus]?.nombre||''}`.toLowerCase();
-                        
                         let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
-                        let optionsHtml = `
-                        <div class="dropdown w-100">
-                            <button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                ${curEst.nombre}
-                            </button>
-                            <ul class="dropdown-menu shadow-lg border-0 rounded-3" style="font-size:0.75rem; max-height:250px; overflow-y:auto; z-index:9999 !important;">
-                                ${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item fw-bold cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}
-                            </ul>
-                        </div>`;
+                        let optionsHtml = `<div class="dropdown w-100"><button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" aria-expanded="false">${curEst.nombre}</button><ul class="dropdown-menu shadow-lg border-0 rounded-3" style="font-size:0.75rem; max-height:250px; overflow-y:auto; z-index:9999 !important;">${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item fw-bold cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}</ul></div>`;
 
-                        // LOGICA DE MULTI-DESTINOS
                         let arrDests = v.destino ? String(v.destino).split(/,|\n/).map(d => d.trim()).filter(d => d !== "") : [];
-                        let totDests = arrDests.length || 1;
-                        let cIdx = v.destino_idx || 0;
-                        let cOrigen = v.origen_actual || v.origen || "";
-                        let cDestino = arrDests[cIdx] || v.destino || "";
-
+                        let totDests = arrDests.length || 1; let cIdx = v.destino_idx || 0;
+                        let cOrigen = escapeSafe(v.origen_actual || v.origen || ""); let cDestino = escapeSafe(arrDests[cIdx] || v.destino || "");
                         let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
 
-                        let overrideFin = null;
-                        if (cIdx < totDests - 1 && !v.t_fin) overrideFin = `avanzarMultiDestino('${vId}')`;
-
+                        let overrideFin = null; if (cIdx < totDests - 1 && !v.t_fin) overrideFin = `avanzarMultiDestino('${vId}')`;
                         let isTransit = v.is_transit && cIdx > 0;
                         let btnSalida = construirBotonHorario(vId, v.t_salida, 't_salida', 'SALIDA', 'success', isTransit);
                         let btnArribo = v.t_salida ? construirBotonHorario(vId, v.t_arribo, 't_arribo', 'ARRIBO', 'primary') : '';
                         let btnFin = v.t_arribo ? construirBotonHorario(vId, v.t_fin, 't_fin', 'FINALIZADO', 'dark', false, overrideFin) : '';
 
-                        let mapClick = `clickMapaUnidad('${vId}')`;
-
-                        let tds = {};
-                        tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex align-items-center justify-content-center"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${nombreCamion}</span></div></td>`;
+                        let mapClick = `clickMapaUnidad('${vId}')`; let tds = {};
+                        tds['col-unidad'] = `<td class="col-unidad align-middle ${hiddenCols['col-unidad'] ? 'd-none' : ''}"><div class="d-flex align-items-center justify-content-center"><span class="unit-name" id="name_btn_${vId}" onclick="${mapClick}">${safeCamionName}</span></div></td>`;
                         tds['col-operador'] = `<td class="col-operador align-middle ${hiddenCols['col-operador'] ? 'd-none' : ''}"><div id="op_wialon_${vId}"><span class="badge bg-secondary w-100 mt-1" style="font-size:0.6rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</span></div></td>`;
-                        
-                        tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}">
-                            <div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje' en menú derecho">
-                                <div class="d-flex align-items-center justify-content-center gap-1 w-100">
-                                    <input class="input-ghost text-center flex-grow-1 w-50" value="${cOrigen}" placeholder="ORIGEN" readonly style="cursor:default;">
-                                    <i class="fa-solid fa-play" style="color:var(--grudicom-blue); font-size:0.65rem;"></i>
-                                    <input class="input-ghost text-center flex-grow-1 w-50" value="${cDestino}" placeholder="DESTINO" readonly style="cursor:default;">
-                                </div>
-                                ${notaDests}
-                            </div>
-                        </td>`;
-                        
-                        tds['col-contenedores'] = `<td class="col-contenedores align-middle ${hiddenCols['col-contenedores'] ? 'd-none' : ''}"><textarea class="input-ghost text-start" style="resize:none; min-height:40px;" placeholder="CONTENEDORES" onblur="db.ref('viajes_activos/${vId}/contenedores').set(this.value.toUpperCase())">${v.contenedores||''}</textarea></td>`;
+                        tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}"><div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje' en menú derecho"><div class="d-flex align-items-center justify-content-center gap-1 w-100"><input class="input-ghost text-center flex-grow-1 w-50" value="${cOrigen}" placeholder="ORIGEN" readonly style="cursor:default;"><i class="fa-solid fa-play" style="color:var(--grudicom-blue); font-size:0.65rem;"></i><input class="input-ghost text-center flex-grow-1 w-50" value="${cDestino}" placeholder="DESTINO" readonly style="cursor:default;"></div>${notaDests}</div></td>`;
+                        tds['col-contenedores'] = `<td class="col-contenedores align-middle ${hiddenCols['col-contenedores'] ? 'd-none' : ''}"><textarea class="input-ghost text-start" style="resize:none; min-height:40px;" placeholder="CONTENEDORES" onblur="db.ref('viajes_activos/${vId}/contenedores').set(this.value.toUpperCase())">${escapeSafe(v.contenedores||'')}</textarea></td>`;
                         tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${btnSalida}${btnArribo}${btnFin}</div></td>`;
                         tds['col-estatus'] = `<td class="col-estatus align-middle ${hiddenCols['col-estatus'] ? 'd-none' : ''}" style="overflow: visible !important;">${optionsHtml}</td>`;
                         tds['col-gps'] = `<td class="col-gps align-middle ${hiddenCols['col-gps'] ? 'd-none' : ''}" id="gps_cell_${vId}"><div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><span id="icon_${vId}"><i class="fa-solid fa-spinner fa-spin text-muted me-1 fs-6"></i></span><span id="speed_${vId}"><span class="speed-badge bg-secondary m-0">-- km/h</span></span></div><div id="time_${vId}" style="font-size:0.65rem; color:#64748b; font-weight:800;">--</div></div><div class="w-100 text-center" id="addr_control_${vId}"><div style="font-size:0.75rem; color:#64748b; font-weight:800;">Sincronizando...</div></div></div></td>`;
-                        tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+v.alerta.txt+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
+                        tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+escapeSafe(v.alerta.txt)+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
                         tds['col-historial'] = `<td class="col-historial align-middle ${hiddenCols['col-historial'] ? 'd-none' : ''}">${lastLog}</td>`;
                         
+                        // EL BOTÓN DE ACCIÓN REPARADO (Punto 1: escapeSafe)
                         tds['col-accion'] = `<td class="col-accion align-middle ${hiddenCols['col-accion'] ? 'd-none' : ''}" style="overflow: visible !important;">
                             <div class="d-flex align-items-center justify-content-center h-100">
                                 <div class="dropdown">
                                     <button class="btn-dots cp bg-transparent border-0" type="button" data-bs-toggle="dropdown" data-bs-boundary="window" title="Más Opciones"><i class="fa-solid fa-ellipsis-vertical fs-5 text-muted"></i></button>
                                     <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 dropdown-menu-custom" style="z-index:9999 !important;">
                                         <li><a class="dropdown-item dropdown-item-custom text-success cp" onclick="enviarWA('${vId}')"><i class="fa-brands fa-whatsapp me-2 fs-5 align-middle"></i> Enviar WhatsApp</a></li>
-                                        <li><a class="dropdown-item dropdown-item-custom text-primary cp" onclick="abrirEdicionViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-pencil me-2 fs-5 align-middle"></i> Editar Viaje</a></li>
+                                        <li><a class="dropdown-item dropdown-item-custom text-primary cp" onclick="abrirEdicionViaje('${vId}', '${safeCamionName}')"><i class="fa-solid fa-pencil me-2 fs-5 align-middle"></i> Editar Viaje</a></li>
                                         <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item dropdown-item-custom text-danger cp" onclick="finalizarViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-trash me-2 fs-5 align-middle"></i> Archivar Viaje</a></li>
+                                        <li><a class="dropdown-item dropdown-item-custom text-danger cp" onclick="finalizarViaje('${vId}', '${safeCamionName}')"><i class="fa-solid fa-trash me-2 fs-5 align-middle"></i> Archivar Viaje</a></li>
                                     </ul>
                                 </div>
                             </div>
                         </td>`;
 
                         let savedWidths = JSON.parse(localStorage.getItem('tms_colWidths')) || {};
-                        let trInner = colOrder.map(c => {
-                            let ancho = savedWidths[c] || columnasDef[c].ancho;
-                            return tds[c].replace('class="', `style="width:${ancho}px; min-width:${ancho}px; max-width:${ancho}px;" class="`);
-                        }).join('');
-                        
+                        let trInner = colOrder.map(c => { let ancho = savedWidths[c] || columnasDef[c].ancho; return tds[c].replace('class="', `style="width:${ancho}px; min-width:${ancho}px; max-width:${ancho}px;" class="`); }).join('');
                         let trClass = isExternal ? 'external-connection-row data-row' : 'needs-gps-update data-row';
-                        html += `<tr class="${trClass} client-group-${cId}" id="row_${vId}" data-search="${searchData}" style="--row-bg: ${hexToRgba(colEstatus, 0.08)};">${trInner}</tr>`;
+                        html += `<tr class="${trClass} client-group-${cId}" id="row_${vId}" data-search="${searchData}">${trInner}</tr>`;
 
                     } catch(err) { console.error("Fila omitida por error:", vId, err); }
                 });
             }
         }
-    } catch (e) {
-        console.error("Error global renderizando la tabla", e);
-    }
+    } catch (e) { console.error("Error global renderizando la tabla", e); }
     
     tbody.innerHTML = html || `<tr><td colspan="${colOrder.length}" class="p-5 text-muted fs-6 text-center"><i class="fa-solid fa-folder-open mb-2 fs-3 text-primary"></i><br>Aún no hay viajes activos en la bitácora.</td></tr>`;
-    filtrarTablaInteligente();
-    if (motorArrancado) inyectarGPSenTabla();
+    filtrarTablaInteligente(); if (motorArrancado) inyectarGPSenTabla();
 };
 
 window.filtrarTablaInteligente = function() {
     let t = document.getElementById("buscador").value.toLowerCase(); let rows = Array.from(document.querySelectorAll("#units-body tr"));
     rows.forEach(r => { if(r.classList.contains("data-row")) r.style.display = (r.getAttribute("data-search") || "").includes(t) ? "" : "none"; });
-    
     let currentSubclientVisible = false; let currentClientVisible = false;
     for (let i = rows.length - 1; i >= 0; i--) {
         let r = rows[i];
-        if (r.classList.contains("data-row")) { 
-            if (r.style.display !== "none") { currentSubclientVisible = true; currentClientVisible = true; } 
-        } 
+        if (r.classList.contains("data-row")) { if (r.style.display !== "none") { currentSubclientVisible = true; currentClientVisible = true; } } 
         else if (r.classList.contains("header-columnas")) { r.style.display = currentSubclientVisible ? "" : "none"; } 
         else if (r.classList.contains("header-subcliente")) { r.style.display = currentSubclientVisible ? "" : "none"; currentSubclientVisible = false; } 
         else if (r.classList.contains("header-cliente")) { r.style.display = currentClientVisible ? "" : "none"; currentClientVisible = false; currentSubclientVisible = false; }
@@ -1079,10 +860,8 @@ window.inyectarGPSenTabla = function() {
             let uData = encontrarUnidad(v, vId); let isExternal = v.wialonId === "EXTERNO"; 
             let pos = uData ? uData.pos : null; let speed = pos ? pos.s : 0; 
             
-            // LA CLAVE ANTI-CRASH
             let hasCoords = pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined';
             let isLost = !uData || (!hasCoords && !isExternal);
-            
             let ageSecs = pos && pos.t ? Math.floor(Date.now()/1000) - pos.t : 0;
             let isStale = ageSecs > 14400; // 4 Horas sin datos de Wialon
             
@@ -1095,7 +874,6 @@ window.inyectarGPSenTabla = function() {
 
             let safeName = uData ? uData.name : "Desconocida";
 
-            // LOGICA HUBS AUTOMATIZADOS (Paradas)
             if(!isExternal && !isLost && !isStale) {
                 if(v.t_salida && !v.t_arribo) {
                     if(speed < 4) {
@@ -1107,18 +885,16 @@ window.inyectarGPSenTabla = function() {
                                 enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida > 5 min');
                             }
                         }
-                    } else {
-                        if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
-                    }
+                    } else { if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null); }
                 }
             }
 
             let elGpsCell = document.getElementById("gps_cell_" + vId);
             if(elGpsCell) {
                 if (isExternal) {
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.65rem; color:#64748b; font-weight:800;">Externa</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`;
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.65rem; color:#64748b; font-weight:800;">Externa</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${escapeSafe(v.ubicacion_manual||'--')}</div></div></div>`;
                 } else if (isLost) {
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div><div style="font-size:0.65rem; color:#ef4444; font-weight:800;">Modo Offline</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`;
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div><div style="font-size:0.65rem; color:#ef4444; font-weight:800;">Modo Offline</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${escapeSafe(v.ubicacion_manual||'--')}</div></div></div>`;
                 } else {
                     let speedBg = "#64748b"; if(speed > 0 && speed < 100) speedBg = "#10b981"; if(speed >= 100) speedBg = "#ef4444"; 
                     if(isStale) speedBg = "#ef4444"; 
@@ -1128,54 +904,31 @@ window.inyectarGPSenTabla = function() {
                     let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`;
                     let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
                     let addrText = `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
-                    if(geocodeCache[geoKey]) addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}`;
+                    if(geocodeCache[geoKey]) addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${escapeSafe(geocodeCache[geoKey])}`;
                     
                     let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : '';
                     let timeHover = formatTimeFriendly(pos.t);
                     
-                    elGpsCell.innerHTML = `
-                        <div class="d-flex flex-column px-1 w-100">
-                            <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1">
-                                <div class="d-flex align-items-center">
-                                    ${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span>
-                                    ${geoHtml}
-                                </div>
-                                <div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}">
-                                    <span class="${timeColor}">(${timeAgo(pos.t)})</span>
-                                </div>
-                            </div>
-                            <div class="d-flex align-items-center w-100">
-                                <a href="https://www.google.com/maps/search/?api=1&query=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
-                                    <div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div>
-                                </a>
-                            </div>
-                        </div>
-                    `;
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center">${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span>${geoHtml}</div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}"><span class="${timeColor}">(${timeAgo(pos.t)})</span></div></div><div class="d-flex align-items-center w-100"><a href="https://maps.google.com/?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps"><div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div></a></div></div>`;
                 }
             }
 
             let btnName = document.getElementById("name_btn_" + vId);
-            if (btnName && hasCoords) {
-                btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`);
-            } else if (btnName) {
-                btnName.setAttribute("onclick", `centrarUnidadMapa(null, null)`);
-            }
+            if (btnName && hasCoords) { btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); } 
+            else if (btnName) { btnName.setAttribute("onclick", `centrarUnidadMapa(null, null)`); }
 
-            let wialonDriverObj = uData ? uData.choferObj : null;
-            let elOpWialon = document.getElementById("op_wialon_" + vId);
+            let wialonDriverObj = uData ? uData.choferObj : null; let elOpWialon = document.getElementById("op_wialon_" + vId);
             if (elOpWialon) {
                 if (wialonDriverObj && wialonDriverObj.nombre !== "Sin asignar") {
                     let telRaw = wialonDriverObj.tel || ""; let cleanTel = String(telRaw).replace(/\D/g,'');
-                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${wialonDriverObj.nombre}</div><div class="fw-bold text-muted user-select-all mt-1" style="font-size:0.7rem;">${telRaw}</div>`;
+                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${escapeSafe(wialonDriverObj.nombre)}</div><div class="fw-bold text-muted user-select-all mt-1" style="font-size:0.7rem;">${escapeSafe(telRaw)}</div>`;
                 } else if (v.operador) {
-                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${v.operador}</div><div style="font-size:0.6rem; color:#64748b;">(Manual)</div>`;
-                } else { 
-                    elOpWialon.innerHTML = '<span class="badge bg-secondary w-100 mt-1" style="font-size:0.65rem;">Sin asignar</span>'; 
-                }
+                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${escapeSafe(v.operador)}</div><div style="font-size:0.6rem; color:#64748b;">(Manual)</div>`;
+                } else { elOpWialon.innerHTML = '<span class="badge bg-secondary w-100 mt-1" style="font-size:0.65rem;">Sin asignar</span>'; }
             }
             
             let elAlertas = document.getElementById("alertas_" + vId);
-            if (elAlertas) { elAlertas.innerHTML = v.alerta ? `<span class="text-danger fw-bold" style="font-size:0.85rem;">${v.alerta.txt}</span>` : `<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>`; }
+            if (elAlertas) { elAlertas.innerHTML = v.alerta ? `<span class="text-danger fw-bold" style="font-size:0.85rem;">${escapeSafe(v.alerta.txt)}</span>` : `<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>`; }
 
         } catch(e) { console.error("Error GPS:", vId, e); }
     });
@@ -1185,11 +938,8 @@ window.inyectarGPSenTabla = function() {
 window.desencadenarGeocoding = function() {
     Object.keys(viajesActivos).forEach(vId => {
         let v = viajesActivos[vId]; if(typeof v !== 'object' || !v) return; let uData = encontrarUnidad(v, vId); 
-        
-        let destinosArr = v.destino ? String(v.destino).split(/,|\n/).map(d=>d.trim()).filter(d=>d!=="") : [];
-        let targetDest = destinosArr[v.destino_idx || 0] || v.destino;
-
-        if(uData && uData.pos) {
+        let destinosArr = v.destino ? String(v.destino).split(/,|\n/).map(d=>d.trim()).filter(d=>d!=="") : []; let targetDest = destinosArr[v.destino_idx || 0] || v.destino;
+        if(uData && uData.pos && typeof uData.pos.y !== 'undefined') {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(uData.pos.y, uData.pos.x);
             let geoKey = `${uData.pos.y.toFixed(4)}_${uData.pos.x.toFixed(4)}`;
             if(!geocodeCache[geoKey] && !geoQueue.find(i => i.key === geoKey)) { geoQueue.push({ key: geoKey, y: uData.pos.y, x: uData.pos.x, vId: vId, dest: targetDest }); } 
@@ -1201,18 +951,16 @@ window.procesarFilaDirecciones = function() {
     if(isGeocoding || geoQueue.length === 0) return; isGeocoding = true; let item = geoQueue.shift();
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${item.y}&lon=${item.x}&zoom=16`).then(r => r.json()).then(d => {
         let a = d.display_name || "Sin dirección"; geocodeCache[item.key] = a; localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
-        document.querySelectorAll(`.addr-span-${item.key}`).forEach(span => span.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${a}`);
+        document.querySelectorAll(`.addr-span-${item.key}`).forEach(span => span.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${escapeSafe(a)}`);
     }).catch(e => console.log("Geo Err")).finally(() => { isGeocoding = false; });
 };
 
 // --- MOTOR PRINCIPAL: LOGIN Y WIALON ---
 window.onload = function () {
-    aplicarAnchosGuardados();
-    inicializarMenuColumnas();
-    
-    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; actualizarListasAdmin(); renderizarBitacora(); });
+    aplicarAnchosGuardados(); inicializarMenuColumnas();
+    db.ref('clientes').on('value', s => { dataClientes = s.val() || {}; renderizarBitacora(); });
     db.ref('viajes_activos').on('value', s => { viajesActivos = s.val() || {}; renderizarBitacora(); if(mapVisible) actualizarMarcadoresMapa(); });
-    db.ref('sistema/tokens').on('value', s => { let tks = s.val() || {}; configSistema.tokens = Object.values(tks); actualizarListaTokensAdmin(tks); if(currentUser && !motorArrancado) arranqueMotor(); });
+    db.ref('sistema/tokens').on('value', s => { let tks = s.val() || {}; configSistema.tokens = Object.values(tks); if(currentUser && !motorArrancado) arranqueMotor(); });
     
     document.getElementById("logPass").addEventListener("keyup", e => e.key === "Enter" && autenticarUsuario());
     let sU = localStorage.getItem("tms_user"), sP = localStorage.getItem("tms_pass"); if(sU && sP) autenticarUsuario(sU, sP);
@@ -1229,7 +977,6 @@ window.autenticarUsuario = function(aU, aP) {
             currentUser = user; localStorage.setItem("tms_user", u); localStorage.setItem("tms_pass", p);
             document.getElementById("loginOverlay").style.display = "none"; document.getElementById("dashboard").style.display = "flex";
             document.getElementById("lblUsuarioActivo").innerHTML = "<i class='fa-solid fa-user-shield me-1'></i> Monitor: " + currentUser.nom;
-            if(currentUser.rol === "admin") document.getElementById("btnAdminMenu").style.display = "block";
             if(!motorArrancado) arranqueMotor();
         } else { document.getElementById("status").innerText = "Credenciales Incorrectas"; document.getElementById("status").className = "mt-3 small fw-bold text-danger"; }
     }).catch(err => { document.getElementById("status").innerText = "Error de red."; document.getElementById("status").className = "mt-3 small fw-bold text-danger"; });
@@ -1250,7 +997,7 @@ window.arranqueMotor = async function() { if(pollingInterval) clearInterval(poll
 window.renderStatusTokens = function() {
     const lista = document.getElementById("listaStatusTokens"); let html = "";
     for(let tk in estadoTokens) { let stat = estadoTokens[tk]; let badge = stat.status === 'OK' ? '<span class="badge bg-success shadow-sm">ONLINE</span>' : '<span class="badge bg-danger shadow-sm">OFFLINE</span>'; html += `<li class="list-group-item d-flex justify-content-between align-items-center p-2"><div class="fw-bold" style="font-size:0.8rem;">${tk}</div> <div><span class="badge bg-secondary me-2 shadow-sm">${stat.count} Unidades</span> ${badge}</div></li>`; }
-    lista.innerHTML = html || '<li class="list-group-item text-center">No hay tokens</li>';
+    if(lista) lista.innerHTML = html || '<li class="list-group-item text-center">No hay tokens</li>';
 };
 
 window.sincronizarFlotas = async function() {
@@ -1312,8 +1059,10 @@ window.sincronizarFlotas = async function() {
         if (Object.keys(tempUnits).length > 0 || Object.keys(unidadesGlobales).length === 0) { unidadesGlobales = tempUnits; }
         if (tempGeo.length > 0 || geocercasNativas.length === 0) { geocercasNativas = tempGeo; }
         
-        document.getElementById("listaUnidadesTotales").innerHTML = Array.from(listUni).map(n => `<option value="${n}">`).join('');
-        document.getElementById("listaGeocercas").innerHTML = geocercasNativas.map(z => `<option value="${String(z.n).toUpperCase()}">`).join('');
+        let selectUnidades = document.getElementById("listaUnidadesTotales");
+        if(selectUnidades) selectUnidades.innerHTML = Array.from(listUni).map(n => `<option value="${n}">`).join('');
+        let selectGeo = document.getElementById("listaGeocercas");
+        if(selectGeo) selectGeo.innerHTML = geocercasNativas.map(z => `<option value="${String(z.n).toUpperCase()}">`).join('');
         
         if(indMenu) {
             if(conexionesExitosas > 0) indMenu.innerHTML = `<span class="badge bg-success shadow-sm rounded-pill py-1 px-2">${Object.keys(unidadesGlobales).length} Camiones Live</span>`;
