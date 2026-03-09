@@ -1726,11 +1726,23 @@ function inyectarGPSenTabla() {
             let viajeFinalizado = !!v.t_fin;
 
             // 1. ÚNICA ALERTA PERMITIDA SI AÚN NO ESTÁ EN RUTA: "SALIDA"
-            if (!viajeIniciado && !v.salida_notificada && speed >= 4 && !isExternal && !isLost && !isStale) {
+            if (!viajeIniciado && !v.salida_notificada && !isExternal && !isLost && !isStale) {
                 let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                if ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10) {
+                
+                // Escenario normal: Arrancó y superó 4 km/h
+                if (speed >= 4 && ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10)) {
                     enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
                     db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
+                } 
+                // CASO EXTREMO: Registraron el viaje tarde y la unidad YA ESTÁ en el destino
+                else if (zonaActual && zonaActual.includes(cDestino) && speed < 4) {
+                    enviarNotificacionPersistente(vId, safeName, 'ARRIBO', `⚠️ REGISTRO TARDÍO: La unidad ya está estacionada en el destino final.`);
+                    // Destrabamos el escudo automáticamente poniéndole una salida hace un minuto
+                    db.ref('viajes_activos/'+vId).update({
+                        t_salida: Date.now() - 60000, 
+                        salida_notificada: true,
+                        arribo_notificado: true
+                    });
                 }
             }
 
@@ -2274,6 +2286,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
