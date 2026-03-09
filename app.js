@@ -1595,6 +1595,7 @@ function renderizarBitacora() {
 
                     // LÓGICA DE SEMÁFORO
                     let semaforoHtml = '';
+                    let iconoStatusIzquierda = ''; // NUEVA VARIABLE PARA EL ÍCONO
                     if(v.t_programada) {
                         let pTime = new Date(v.t_programada);
                         let dateStr = pTime.toLocaleDateString('es-MX', {day:'2-digit', month:'short'});
@@ -1605,7 +1606,7 @@ function renderizarBitacora() {
                         let diffStr = formatTimeDiff(diffMins);
 
                         if (!v.t_salida) {
-                            // SI AÚN NO SALE: Muestra la cápsula completa
+                            // SI AÚN NO SALE: Muestra la cápsula completa en la columna ruta
                             let sClass = "semaforo-verde"; let sText = ""; let sIcon = "fa-clock";
                             if (diffMins > 20) { 
                                 sClass = "semaforo-rojo"; sText = `Retraso: ${diffStr}`; sIcon = "fa-circle-xmark"; 
@@ -1616,13 +1617,11 @@ function renderizarBitacora() {
                             }
                             semaforoHtml = `<div class="badge-semaforo ${sClass}" title="⌚ HORA PROGRAMADA: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${sText}</div>`;
                         } else {
-                            // SI YA SALIÓ A RUTA: Muestra solo un ícono leve
+                            // SI YA SALIÓ A RUTA: Desaparece de ruta y se va al ícono lateral
                             if (diffMins > 0) {
-                                // Salió tarde (Ícono Rojo)
-                                semaforoHtml = `<i class="fa-solid fa-circle-exclamation text-danger fs-6 mb-1" title="Salió tarde por ${diffStr} (Prog: ${pTimeStr})" style="cursor:help;"></i>`;
+                                iconoStatusIzquierda = `<i class="fa-solid fa-circle-exclamation text-danger fs-6" title="Salió tarde por ${diffStr} (Prog: ${pTimeStr})" style="cursor:help;"></i>`;
                             } else {
-                                // Salió a tiempo o adelantado (Ícono Verde)
-                                semaforoHtml = `<i class="fa-solid fa-circle-check text-success fs-6 mb-1" title="Salió a tiempo (Prog: ${pTimeStr})" style="cursor:help;"></i>`;
+                                iconoStatusIzquierda = `<i class="fa-solid fa-circle-check text-success fs-6" title="Salió a tiempo (Prog: ${pTimeStr})" style="cursor:help;"></i>`;
                             }
                         }
                     }
@@ -1659,6 +1658,11 @@ function renderizarBitacora() {
                     let btnArribo = v.t_salida ? construirBotonHorario(vId, v.t_arribo, 't_arribo', 'ARRIBO', 'primary') : '';
                     let btnFin = v.t_arribo ? construirBotonHorario(vId, v.t_fin, 't_fin', 'FINALIZADO', 'dark', false, overrideFin) : '';
 
+                    // ENVOLVEMOS EL BOTÓN DE SALIDA CON EL ÍCONO A SU IZQUIERDA
+                    let outputSalida = iconoStatusIzquierda 
+                        ? `<div class="d-flex align-items-center w-100 gap-1">${iconoStatusIzquierda}<div class="flex-grow-1" style="min-width:0;">${btnSalida}</div></div>` 
+                        : btnSalida;
+
                     let mapClick = `clickMapaUnidad('${vId}')`;
                     let tds = {};
                     
@@ -1688,7 +1692,8 @@ function renderizarBitacora() {
                         </div>
                     </td>`;
                     
-                    tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${btnSalida}${btnArribo}${btnFin}</div></td>`;
+                    // APLICAMOS LA VARIABLE "outputSalida" A LA COLUMNA DE HORARIOS
+                    tds['col-horarios'] = `<td class="col-horarios align-middle ${hiddenCols['col-horarios'] ? 'd-none' : ''}"><div class="d-flex flex-column justify-content-center h-100 px-1">${outputSalida}${btnArribo}${btnFin}</div></td>`;
                     tds['col-estatus'] = `<td class="col-estatus align-middle ${hiddenCols['col-estatus'] ? 'd-none' : ''}" style="overflow: visible !important;">${optionsHtml}</td>`;
                     
                     tds['col-gps'] = `<td class="col-gps align-middle ${hiddenCols['col-gps'] ? 'd-none' : ''}" id="gps_cell_${vId}">
@@ -2354,6 +2359,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
