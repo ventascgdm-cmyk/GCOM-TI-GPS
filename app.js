@@ -1424,7 +1424,7 @@ function renderizarBitacora() {
                             }
                         }
 
-                        semaforoHtml = `<div class="badge-semaforo ${sClass}" title="Hora Programada: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${pTimeStr} <br> <span style="font-size:0.55rem;">(${sText})</span></div>`;
+                        semaforoHtml = `<div class="badge-semaforo ${sClass}" title="Hora Programada: ${pTimeStr}"><i class="fa-solid ${sIcon}"></i> ${sText}</div>`;
                     }
 
                     let notaDests = totDests > 1 ? `<div style="font-size:0.65rem; color:#0284c7; font-weight:900; margin-top:4px;">Destino ${cIdx + 1} de ${totDests}</div>` : '';
@@ -2135,3 +2135,4 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
