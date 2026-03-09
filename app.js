@@ -107,6 +107,7 @@ let hiddenCols = JSON.parse(localStorage.getItem('tms_hiddenCols')) || {
 };
 
 window.estatusData = { 
+    "s0":{nombre:"0. SIN ESTATUS",col:"#94a3b8"}, 
     "s1":{nombre:"1. Ruta",col:"#10b981"}, 
     "s2":{nombre:"1.1 PARADO",col:"#ef4444"}, 
     "s3":{nombre:"1.2 RETEN",col:"#d97706"}, 
@@ -1257,7 +1258,8 @@ function registrarViajesMultiples() {
         }
         
         let refPush = db.ref('viajes_activos').push();
-        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destinos: destArr, destino_idx: 0, estatus: "s1", operador: opInput, contenedores_arr: contArr, t_programada: tProgTs, unidadFallback: uInput, unidadN: uInput }).then(() => {
+        // NOTA: Se cambió estatus: "s1" por estatus: "s0"
+        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destinos: destArr, destino_idx: 0, estatus: "s0", operador: opInput, contenedores_arr: contArr, t_programada: tProgTs, unidadFallback: uInput, unidadN: uInput }).then(() => {
             registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS");
             if(tProgTs) registrarLog(refPush.key, "Hora de Salida Programada", tProgRaw.replace('T', ' '));
             if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { vincularChoferEnWialon(wId, opInputRaw); }
@@ -1278,6 +1280,8 @@ function abrirEdicionViaje(uId, uName) {
     
     document.getElementById("edU_id").value = uId; 
     document.getElementById("edU_name").innerText = uName; 
+    // NUEVO: Se llena el campo de Unidad
+    document.getElementById("ed_unidad").value = limpiarStr(v.unidadN || v.unidadFallback); 
     document.getElementById("ed_origen").value = v.origen || ""; 
     document.getElementById("ed_t_programada").value = v.t_programada ? getLocalISO(v.t_programada) : "";
     
@@ -1301,7 +1305,6 @@ function abrirEdicionViaje(uId, uName) {
 
     document.getElementById("ed_operador").value = isExt ? (v.operador || "") : ""; 
     
-    // Cargar selectores dinámicos
     let edCli = document.getElementById("ed_cliente");
     edCli.innerHTML = '<option value="Sin_Cliente">-- SIN CLIENTE --</option>' + Object.keys(dataClientes).map(k => {
         let isSel = (v.cliente === k) ? 'selected' : '';
@@ -1323,11 +1326,28 @@ function guardarEdicionViaje() {
     let uId = document.getElementById("edU_id").value; 
     let v = viajesActivos[uId]; 
     if(!v) return;
+
+    let uInput = limpiarStr(document.getElementById("ed_unidad").value);
+    if(!uInput) return alert("⚠️ El nombre de la unidad no puede estar vacío.");
+
+    let isExt = (v.wialonId === "EXTERNO"); 
+    let wId = v.wialonId;
+
+    // NUEVO: Validar si cambió el nombre de la unidad y NO es externa
+    if (!isExt && uInput !== limpiarStr(v.unidadN || v.unidadFallback)) {
+        let nNorm = uInput.replace(/[\s\-]/g, ""); 
+        let foundWialon = false;
+        for(let k in unidadesGlobales){ 
+            if(limpiarStr(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { 
+                wId = k; uInput = unidadesGlobales[k].name; foundWialon = true; break; 
+            } 
+        } 
+        if(!foundWialon) return alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`);
+    }
     
     let tProgRaw = document.getElementById("ed_t_programada").value; 
     let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
 
-    let isExt = (v.wialonId === "EXTERNO"); 
     let opWialon = document.getElementById("ed_operador_wialon").value; 
     let opManual = document.getElementById("ed_operador").value;
     let finalOp = isExt ? limpiarStr(opManual) : limpiarStr(opWialon);
@@ -1335,8 +1355,11 @@ function guardarEdicionViaje() {
     let cId = document.getElementById("ed_cliente").value || "Sin_Cliente";
     let sId = document.getElementById("ed_subcliente").value || "N/A";
 
-    registrarLog(uId, "Editó Datos", "Rutas/Contenedor/Hora/Cliente"); 
+    registrarLog(uId, "Editó Datos", "Unidad/Rutas/Contenedor/Hora/Cliente"); 
     db.ref('viajes_activos/' + uId).update({ 
+        unidadN: uInput,
+        unidadFallback: uInput,
+        wialonId: wId,
         cliente: cId,
         subcliente: sId,
         origen: limpiarStr(document.getElementById("ed_origen").value), 
@@ -1346,11 +1369,10 @@ function guardarEdicionViaje() {
         t_programada: tProgTs 
     }).then(() => { 
         mostrarNotificacion("Cambios guardados.");
-        if (!isExt && opWialon) vincularChoferEnWialon(v.wialonId, finalOp);
+        if (!isExt && opWialon) vincularChoferEnWialon(wId, finalOp);
         try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} 
     }); 
 }
-
 // ============================================================================
 // PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON
 // ============================================================================
@@ -1488,7 +1510,7 @@ function renderizarBitacora() {
        </div>` 
     : lastLog;
 
-                    let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
+                    let curEst = window.estatusData[v.estatus] || window.estatusData["s0"];
                     let optionsHtml = `
                         <div class="dropdown w-100">
                             <button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" data-bs-boundary="body" aria-expanded="false">
@@ -2244,6 +2266,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
