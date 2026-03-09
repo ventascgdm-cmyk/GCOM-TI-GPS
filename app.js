@@ -1715,79 +1715,83 @@ function inyectarGPSenTabla() {
             } 
             
             let safeName = uData ? uData.name : "Desconocida";
+            let cOrigen = limpiarStr(v.origen);
+            let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
+            let cDestino = limpiarStr(arrDests[v.destino_idx || 0] || v.destino);
 
-            // LOGICA: Desconexiones a Hub de Seguridad
-            if (isStale && !isExternal && !v.alerta_desconexion) {
-                db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true);
-                enviarNotificacionPersistente(vId, safeName, 'DESCONEXION', 'Pérdida de conexión GPS (>10 min)');
-            } else if (!isStale && !isLost && v.alerta_desconexion) {
-                db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null);
-                registrarLog(vId, "Alerta GPS", "Conexión recuperada exitosamente");
+            // =========================================================
+            // REGLA MAESTRA DE AUDITORÍA: ¿El viaje ya inició oficialmente?
+            // =========================================================
+            let viajeIniciado = !!v.t_salida;
+            let viajeFinalizado = !!v.t_fin;
+
+            // 1. ÚNICA ALERTA PERMITIDA SI AÚN NO ESTÁ EN RUTA: "SALIDA"
+            if (!viajeIniciado && !v.salida_notificada && speed >= 4 && !isExternal && !isLost && !isStale) {
+                let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
+                if ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10) {
+                    enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
+                    db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
+                }
             }
 
-            if(!isExternal && !isLost && !isStale) {
-                let zonaGeo = resolverGeocerca(pos.y, pos.x) || uData.zonaOficial;
-                let cOrigen = limpiarStr(v.origen);
-                let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-                let cDestino = limpiarStr(arrDests[v.destino_idx || 0] || v.destino);
-
-                let isNotInGeofence = true;
-                if (zonaGeo) {
-                    let z = limpiarStr(zonaGeo);
-                    if (z.includes(cOrigen) || z.includes(cDestino)) isNotInGeofence = false;
+            // 2. TODAS LAS DEMÁS ALERTAS SE BLOQUEAN HASTA QUE SE CONFIRME LA SALIDA
+            if (viajeIniciado && !viajeFinalizado) {
+                
+                // LÓGICA: Desconexiones a Hub de Seguridad
+                if (isStale && !isExternal && !v.alerta_desconexion) {
+                    db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true);
+                    enviarNotificacionPersistente(vId, safeName, 'DESCONEXION', 'Pérdida de conexión GPS (>10 min)');
+                } else if (!isStale && !isLost && v.alerta_desconexion) {
+                    db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null);
+                    registrarLog(vId, "Alerta GPS", "Conexión recuperada exitosamente");
                 }
 
-                // LÓGICA: Auto-Estatus y Alertas de Parada (Ignora Geocercas de Cliente)
-                if(v.t_salida && !v.t_arribo) {
-                    if (speed < 4) { 
-                        if (!v.t_parada_inicio) {
-                            db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
-                        } else {
-                            let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
-                            // Si se para más de 5 mins y NO ESTÁ en cliente -> Auto-Estatus Parado y Manda Alerta
-                            if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
-                                db.ref('viajes_activos/'+vId).update({
-                                    alerta_detenida: true,
-                                    estatus: 's2' // 1.1 PARADO
-                                });
-                                enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
+                if(!isExternal && !isLost && !isStale) {
+                    let zonaGeo = resolverGeocerca(pos.y, pos.x) || uData.zonaOficial;
+                    let isNotInGeofence = true;
+                    if (zonaGeo) {
+                        let z = limpiarStr(zonaGeo);
+                        if (z.includes(cOrigen) || z.includes(cDestino)) isNotInGeofence = false;
+                    }
+
+                    // LÓGICA: Auto-Estatus y Alertas de Parada (Ignora Geocercas de Cliente)
+                    if(!v.t_arribo) {
+                        if (speed < 4) { 
+                            if (!v.t_parada_inicio) {
+                                db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
+                            } else {
+                                let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
+                                // Si se para más de 5 mins y NO ESTÁ en cliente -> Auto-Estatus Parado y Manda Alerta
+                                if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
+                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2' });
+                                    enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
+                                }
+                            }
+                        } else { 
+                            if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
+                            
+                            // Si vuelve a moverse y estaba "PARADO", auto-cambia a "Ruta" y lanza la Alerta Verde
+                            if (v.estatus === 's2' || v.alerta_detenida) {
+                                db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1' });
+                                enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
                             }
                         }
-                    } else { 
-                        if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
-                        
-                        // Si vuelve a moverse y estaba "PARADO", auto-cambia a "Ruta" y lanza la Alerta Verde
-                        if (v.estatus === 's2' || v.alerta_detenida) {
-                            db.ref('viajes_activos/'+vId).update({
-                                alerta_detenida: null,
-                                estatus: 's1' // 1. Ruta
-                            });
-                            enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
-                        }
                     }
-                }
-                
-                // LÓGICA: Hub Logístico (Salidas de Origen)
-                if (!v.t_salida && !v.salida_notificada && speed >= 4) {
-                    let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                    if ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10) {
-                        enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
-                        db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
-                    }
-                }
 
-                // LÓGICA: Hub Logístico (Salidas de Destino / Finalizaciones)
-                if (v.t_arribo && !v.t_fin && !v.fin_notificado && speed >= 10) {
-                    let targetDest = arrDests[v.destino_idx || 0] || v.destino;
-                    let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                    
-                    if (!zonaActual || !zonaActual.includes(targetDest)) {
-                        enviarNotificacionPersistente(vId, safeName, 'FINALIZACION', `Volvió a salir de su destino: ${targetDest}`);
-                        db.ref('viajes_activos/'+vId+'/fin_notificado').set(true);
+                    // LÓGICA: Hub Logístico (Salidas de Destino / Finalizaciones)
+                    if (v.t_arribo && !v.t_fin && !v.fin_notificado && speed >= 10) {
+                        let targetDest = arrDests[v.destino_idx || 0] || v.destino;
+                        let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
+                        
+                        if (!zonaActual || !zonaActual.includes(targetDest)) {
+                            enviarNotificacionPersistente(vId, safeName, 'FINALIZACION', `Volvió a salir de su destino: ${targetDest}`);
+                            db.ref('viajes_activos/'+vId+'/fin_notificado').set(true);
+                        }
                     }
                 }
             }
             
+            // --- RENDERIZADO VISUAL DEL DATO GPS EN LA CELDA ---
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell) { 
                 if (isExternal) { 
@@ -1870,8 +1874,11 @@ function desencadenarGeocoding() {
     Object.keys(viajesActivos).forEach(vId => {
         let v = viajesActivos[vId]; 
         if(typeof v !== 'object' || !v) return; 
-        let uData = encontrarUnidad(v, vId); 
         
+        // BLOQUEO DE SEGURIDAD: Si no ha iniciado el viaje o ya se terminó, no se procesan arribos
+        if (!v.t_salida || v.t_fin) return; 
+
+        let uData = encontrarUnidad(v, vId); 
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
         let targetDest = arrDests[v.destino_idx || 0] || v.destino;
 
@@ -2267,6 +2274,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
