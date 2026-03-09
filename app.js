@@ -677,8 +677,32 @@ function rechazarNotificacion(id, isSeguridad) {
 }
 
 // --- ACCIONES SECUNDARIAS ---
+// --- ACCIONES SECUNDARIAS ---
 function cambiarEstatus(val, vId) { 
+    let v = viajesActivos[vId]; 
+    if(!v) return;
+
+    let uData = encontrarUnidad(v, vId);
+    let isExternal = v.wialonId === "EXTERNO";
+    let speed = (uData && uData.pos) ? uData.pos.s : 0;
+    
     let txt = window.estatusData[val].nombre; 
+
+    // LÓGICA DE VALIDACIÓN: Estatus vs Velocidad real del GPS
+    if (!isExternal) {
+        // Si intenta poner "1. Ruta" pero va a menos de 4 km/h (Está detenido)
+        if (val === 's1' && speed < 4) {
+            let confirmacion = confirm(`⚠️ ALERTA DE SISTEMA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que la unidad está DETENIDA (${speed} km/h).\n\n¿Estás completamente seguro de forzar este cambio?`);
+            if (!confirmacion) return; // Si le da a cancelar, se aborta la acción
+        } 
+        // Si intenta poner "1.1 PARADO" pero va a más de 4 km/h (Está en movimiento)
+        else if (val === 's2' && speed >= 4) {
+            let confirmacion = confirm(`⚠️ ALERTA DE SISTEMA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que la unidad está EN MOVIMIENTO (${speed} km/h).\n\n¿Estás completamente seguro de forzar este cambio?`);
+            if (!confirmacion) return; // Si le da a cancelar, se aborta la acción
+        }
+    }
+
+    // Si pasó las validaciones o el monitorista forzó el cambio, se guarda
     registrarLog(vId, 'Cambió estatus a', txt); 
     db.ref('viajes_activos/'+vId+'/estatus').set(val); 
 }
@@ -2135,4 +2159,5 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
