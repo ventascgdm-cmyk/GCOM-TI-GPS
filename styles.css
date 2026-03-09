@@ -16,12 +16,13 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .login-bg { background: linear-gradient(135deg, var(--grudicom-blue) 0%, #001a33 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; }
 .login-card { background: var(--bg-card); color: var(--text-main); width: 380px; border-radius: 16px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);}
 
+/* ESQUELETO PRINCIPAL */
 #dashboard { display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden; }
 .header-bar { background: var(--bg-card); padding: 8px 24px; border-bottom: 3px solid var(--grudicom-blue); box-shadow: 0 2px 10px rgba(0,0,0,0.05); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; z-index: 1000; position: relative;}
 
 .workspace-container { display: flex; flex-direction: column; flex: 1; width: 100%; overflow: hidden; }
 .map-panel { flex-basis: 0%; height: 0; overflow: hidden; transition: all 0.4s ease; border-bottom: 0px solid var(--accent); flex-shrink: 0;}
-.workspace-container.show-map .map-panel { flex-basis: 40%; height: 40%; border-bottom: 3px solid var(--grudicom-blue); z-index: 5; position: relative;}
+.workspace-container.show-map .map-panel { flex-basis: 40%; height: 40%; border-bottom: 3px solid var(--grudicom-blue); }
 #map { width: 100%; height: 100%; z-index: 1;}
 
 /* TABLA Y SCROLL */
@@ -31,11 +32,11 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 /* ENCABEZADOS DE COLUMNAS */
 .header-columnas th { background: #f8fafc; color: var(--grudicom-blue); font-size: 0.65rem; font-weight: 800; text-align: center; vertical-align: middle; padding: 8px 4px; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; z-index: 50; border-bottom: 2px solid var(--grudicom-blue); white-space: nowrap; user-select: none; }
-
 .sort-icon { cursor: pointer; opacity: 0.4; transition: 0.2s; font-size: 0.8rem; margin-left: 5px; padding: 2px 4px; border-radius: 4px; }
 .sort-icon:hover { opacity: 1; background: rgba(0, 51, 102, 0.1); }
 .sort-icon.active { opacity: 1; color: var(--accent); }
 
+/* RESIZER */
 .resizer { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 100; background: transparent; transition: 0.2s; }
 .resizer:hover, .resizing { background: rgba(0, 51, 102, 0.2); border-right: 2px solid var(--grudicom-blue); }
 
@@ -45,25 +46,38 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 .data-row:hover td { filter: brightness(0.96); }
 
-/* ALERTA ROJA (MÁS DE 10 MINUTOS SIN CONEXIÓN) */
+/* FIX Z-INDEX PARA MENÚS FLOTANTES */
+tr { position: relative; }
+tr.dropdown-active { z-index: 999999 !important; }
+tr.dropdown-active td, tr.dropdown-active th { z-index: 999999 !important; position: relative; }
+body.dropdown-open .header-columnas th { z-index: 1 !important; }
+body.dropdown-open .header-cliente td { z-index: 0 !important; }
+body.dropdown-open .header-subcliente td { z-index: 0 !important; }
+
+/* MENÚS FLOTANTES CUSTOM */
+.dropdown-menu { z-index: 999999 !important; }
+.dropdown-menu-custom { border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid var(--border-col); padding: 8px; min-width: 200px; }
+.dropdown-item-custom { border-radius: 8px; padding: 8px 12px; font-weight: 700; transition: 0.2s; font-size: 0.75rem; margin-bottom: 4px; }
+.dropdown-item-custom:hover { background-color: #f1f5f9; transform: translateX(3px); }
+
+/* ESTADOS DE ALERTA RENDERIZADO */
 .lost-connection-row td { background-color: #fee2e2 !important; border-bottom: 2px dashed #ef4444 !important; }
-.external-gps-cell { background-color: rgba(14, 165, 233, 0.05) !important; border: 1px dashed #0ea5e9 !important; border-radius: 6px; }
+.external-connection-row td { background-color: #f0f9ff !important; border-bottom: 2px dashed #10b981 !important; }
 
 /* ENCABEZADOS CLIENTE */
-.header-cliente td { background: var(--grudicom-blue) !important; color: #ffffff !important; padding: 12px 15px !important; border: none !important; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); text-align: center; }
-.header-subcliente td { background: #e2e8f0 !important; color: var(--grudicom-blue) !important; font-size: 0.95rem; font-weight: 800; padding: 6px 10px !important; border: none !important; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 4px; }
+.header-cliente td { background: var(--grudicom-blue) !important; color: #ffffff !important; padding: 12px 15px !important; border: none !important; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); text-align: center; position: relative; z-index: 2;}
+.header-subcliente td { background: #e2e8f0 !important; color: var(--grudicom-blue) !important; font-size: 0.95rem; font-weight: 800; padding: 6px 10px !important; border: none !important; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 4px; position: relative; z-index: 2;}
 
-/* LOGOS HOMOLOGADOS (PUNTO 1 Y 6) */
-.client-logo { height: 50px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 12px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin: 0 15px; }
-.grudicom-logo-header { height: 50px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 12px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin-right: 15px; }
+.client-logo { height: 45px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 6px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin: 0 15px;}
+.grudicom-logo-header { height: 45px; max-width: 200px; object-fit: contain; vertical-align: middle; border-radius: 6px; background: white; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin-right: 15px;}
 .client-logo-sub { height: 25px; max-width: 100px; object-fit: contain; vertical-align: middle; margin-right: 10px; border-radius: 4px; background: white; padding: 2px; }
 
 /* TEXTO DE RUTA DINÁMICO */
-.route-text { width: 100%; font-size: 0.7rem; font-weight: 700; color: #0f172a; text-transform: uppercase; text-align: center; border: 1px dashed transparent; background: transparent; padding: 4px; border-radius: 4px; transition: 0.2s; outline: none; min-height: 24px; word-wrap: break-word; white-space: pre-wrap; }
-.route-text:hover { border-color: var(--border-col); background: rgba(241, 245, 249, 0.8); cursor: text; }
-.route-text:focus { border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); }
+.input-ghost { border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 2px 4px; width: 100%; font-size: 0.7rem; font-weight: 700; color: inherit; text-transform: uppercase; text-align: center; transition: all 0.2s; outline: none; }
+.input-ghost:hover { border-color: var(--border-col); background: rgba(241, 245, 249, 0.8); }
+.input-ghost:focus { border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); }
 
-.unit-name { cursor: pointer; color: var(--grudicom-blue); font-weight: 900; font-size: 1.2rem; letter-spacing: 0.5px; display: block; text-align: center; transition: 0.2s;}
+.unit-name { cursor: pointer; color: var(--grudicom-blue); font-weight: 900; font-size: 1.1rem; letter-spacing: 0.5px; display: block; text-align: center; transition: 0.2s;}
 .unit-name:hover { color: #001a33; text-decoration: underline; }
 
 .badge-geo { background: #f8fafc; color: #15803d; font-weight: 800; padding: 2px 6px; border-radius: 4px; border: 1px dashed #22c55e; font-size: 0.65rem;}
@@ -77,90 +91,64 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 .cp { cursor: pointer; }
 
-/* Z-INDEX DROPDOWNS PARA EVITAR PARPADEOS O RECORTES (PUNTO 6) */
-.dropdown-menu { z-index: 1060 !important; }
-.dropdown-menu-custom { border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--border-col); padding: 8px; min-width: 200px; }
-.dropdown-item-custom { border-radius: 8px; padding: 8px 12px; font-weight: 700; transition: 0.2s; font-size: 0.75rem; margin-bottom: 4px;}
-.dropdown-item-custom:hover { background-color: #f1f5f9; transform: translateX(3px); }
+/* CHIPS MULTI-DESTINOS Y CONTENEDORES */
+.chips-container { display: flex; flex-wrap: wrap; gap: 4px; border: 1px solid var(--border-col); padding: 4px; border-radius: 4px; background: white; min-height: 32px; align-items: center; }
+.chip { background: #e0f2fe; color: #0284c7; border: 1px solid #7dd3fc; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; display: flex; align-items: center; }
+.chip-close { cursor: pointer; margin-left: 6px; color: #0284c7; }
+.chip-close:hover { color: #0369a1; }
+.chips-container input { border: none; outline: none; background: transparent; flex-grow: 1; min-width: 80px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
 
-#imgPreviewCaptura { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-.leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); padding: 0; }
-.leaflet-popup-content { margin: 10px 15px; line-height: 1.2; }
+/* EXPANDIR HISTORIAL DE RUTA */
+.tramo-historial { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; opacity: 0; }
+.tramo-historial.expanded { max-height: 500px; opacity: 1; }
 
-/* SEMÁFORO RUTA PROGRAMADA */
-.badge-semaforo { font-size: 0.65rem; font-weight: 800; padding: 3px 8px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 6px; width: 100%; max-width: 180px; text-transform: uppercase; }
-.semaforo-verde { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.semaforo-amarillo { background-color: #fef9c3; color: #b45309; border: 1px solid #fde047; }
-.semaforo-rojo { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.route-text { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-align: center; line-height: 1.2; word-break: break-word; max-width: 100%; }
+
+/* SEMÁFORO DE TIEMPOS */
+.badge-semaforo { width: 100%; text-align: center; padding: 4px 2px; border-radius: 4px; font-weight: 900; font-size: 0.65rem; margin-bottom: 5px; color: white; display: flex; flex-direction: column; align-items: center; line-height: 1.1; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
+.semaforo-verde { background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%); }
+.semaforo-amarillo { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); color: #fff; }
+.semaforo-rojo { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); animation: pulseRed 2s infinite; }
+
+.contenedor-capsula { background: #f8fafc; border: 1px dashed #cbd5e1; padding: 2px 6px; border-radius: 6px; font-size: 0.65rem; font-weight: 800; color: #475569; display: inline-block; margin-top: 2px; width: 100%; word-break: break-word;}
 
 /* MAP TOOLTIPS GEOCERCAS */
 .geocerca-tooltip { background: rgba(0, 51, 102, 0.9); color: #fff; border: 1px solid #fff; border-radius: 6px; font-weight: 800; padding: 4px 8px; font-size: 0.7rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
 .geocerca-tooltip.origen { background: rgba(21, 128, 61, 0.9) !important; border-color: #86efac !important; }
 .geocerca-tooltip.destino { background: rgba(185, 28, 28, 0.9) !important; border-color: #fca5a5 !important; }
 
-/* CONTENEDORES APILADOS */
-.contenedor-capsula { display: flex; justify-content: center; align-items: center; padding: 4px 8px; margin-top: 4px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; font-size: 0.8rem; color: #0369a1; font-weight: 800; line-height: 1.2; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; }
-.contenedor-capsula:first-child { margin-top: 6px; }
+/* ANIMACIÓN BOTONES FLOTANTES */
+@keyframes pulseRed { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); } }
+@keyframes pulseGreen { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(25, 135, 84, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); } }
+@keyframes pulseBlue { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(13, 110, 253, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); } }
 
-/* CHIPS DE MODALES */
-.chip { display: inline-flex; align-items: center; background-color: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 16px; font-size: 0.75rem; font-weight: bold; margin: 2px; border: 1px solid #bae6fd; }
-.chip-close { cursor: pointer; margin-left: 6px; font-size: 0.8rem; opacity: 0.6; }
-.chip-close:hover { opacity: 1; color: #b91c1c; }
-.chips-container { display: flex; flex-wrap: wrap; align-items: center; min-height: 38px; border: 1px solid #ced4da; border-radius: 0.25rem; padding: 2px 6px; background-color: #f8fafc; cursor: text; }
-.chips-container input { border: none; outline: none; background: transparent; flex-grow: 1; min-width: 100px; padding: 4px; font-size: 0.75rem; text-transform: uppercase; }
-
-/* ACORDEÓN DE RUTAS ANIMADO */
-.tramo-historial { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-.tramo-historial.expanded { max-height: 300px; overflow-y: auto; }
-
-/* ANIMACIÓN BOTONES FLOTANTES (PUNTOS 1 Y 5) */
-@keyframes pulseRed {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
-    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
-}
-@keyframes pulseGreen {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
-    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(25, 135, 84, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
-}
-
-/* ANIMACIÓN DE HISTORIAL ROJO CON CAMPANA */
-@keyframes alertBlinkBorder {
-    0% { border-color: #fca5a5; box-shadow: 0 0 5px rgba(239,68,68,0.5); }
-    50% { border-color: #b91c1c; box-shadow: 0 0 15px rgba(239,68,68,1); }
-    100% { border-color: #fca5a5; box-shadow: 0 0 5px rgba(239,68,68,0.5); }
-}
+/* ANIMACIONES DE ALERTAS (PARADAS / REANUDACIONES) */
 .log-alert-container {
-    animation: alertBlinkBorder 1.5s infinite;
-    background-color: #fef2f2 !important;
-    border: 2px solid #ef4444 !important;
     border-radius: 8px;
     padding: 10px;
     text-align: center;
     cursor: pointer;
     transition: 0.2s;
+    background-color: #fef2f2 !important;
+    border: 2px solid #ef4444 !important;
+    animation: alertBlinkBorder 1.5s infinite;
 }
 .log-alert-container:hover { transform: scale(1.02); }
-.log-alert-text { color: #b91c1c; font-weight: 900; font-size: 0.75rem; margin-top: 4px; }
-.log-alert-icon { color: #ef4444; font-size: 1.5rem; animation: ringBell 1s infinite; }
-@keyframes ringBell {
-    0%, 100% { transform: rotate(0deg); }
-    20% { transform: rotate(15deg); }
-    40% { transform: rotate(-15deg); }
-    60% { transform: rotate(10deg); }
-    80% { transform: rotate(-10deg); }
+.log-alert-text { font-weight: 900; font-size: 0.75rem; margin-top: 4px; color: #b91c1c; }
+.log-alert-icon { font-size: 1.5rem; color: #ef4444; animation: ringBell 1s infinite; }
+
+@keyframes alertBlinkBorder {
+    0% { border-color: #fca5a5; box-shadow: 0 0 5px rgba(239,68,68,0.5); }
+    50% { border-color: #b91c1c; box-shadow: 0 0 15px rgba(239,68,68,1); }
+    100% { border-color: #fca5a5; box-shadow: 0 0 5px rgba(239,68,68,0.5); }
+}
+@keyframes ringBell { 
+    0%, 100% { transform: rotate(0deg); } 
+    20% { transform: rotate(15deg); } 
+    40% { transform: rotate(-15deg); } 
+    60% { transform: rotate(10deg); } 
+    80% { transform: rotate(-10deg); } 
 }
 
-/* CLASE DINÁMICA PARA OCULTAR ELEMENTOS DURANTE LA CAPTURA DE PANTALLA (PUNTO 4) */
-.oculto-en-captura { display: none !important; }
-
-/* FIX PARA EVITAR QUE LOS MENÚS SE ENCIMEN CON OTRAS FILAS */
-tr.dropdown-active {
-    position: relative !important;
-    z-index: 99999 !important;
-}
-tr.dropdown-active td {
-    position: relative !important;
-    z-index: 99999 !important;
-}
+/* OCULTAR EN CAPTURA */
+.oculto-en-captura { display: none !important; opacity: 0 !important; visibility: hidden !important; }
