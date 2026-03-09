@@ -235,6 +235,7 @@
             <div class="modal-body bg-light rounded-bottom-4 p-4">
                 <div class="bg-white p-3 rounded-4 shadow-sm border">
                     <input type="hidden" id="edU_id">
+                    
                     <div class="row mb-3">
                         <div class="col-6">
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Cliente:</label>
@@ -251,28 +252,34 @@
                             </div>
                         </div>
                     </div>
+                    
                     <div class="row mb-3">
-                        <div class="col-12">
+                        <div class="col-12 mb-2">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Unidad GPS:</label>
+                            <input type="text" id="ed_unidad" class="form-control form-control-sm border-primary fw-bold text-uppercase" list="listaUnidadesTotales" placeholder="Buscar unidad...">
+                        </div>
+                        <div class="col-12 mb-2">
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Origen (Inicial):</label>
-                            <input type="text" id="ed_origen" class="form-control form-control-sm bg-light text-uppercase mb-2" list="listaGeocercas">
+                            <input type="text" id="ed_origen" class="form-control form-control-sm bg-light text-uppercase" list="listaGeocercas">
                         </div>
-                        <div class="col-12">
-                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Destino(s):</label>
-                            <div class="chips-container mb-2" id="ed_chips_box" onclick="this.querySelector('input').focus()">
-                                <input type="text" list="listaGeocercas" placeholder="Escribe y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_box', edChipsArray)">
+                        <div class="col-12 mb-2">
+                            <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Destino(s): <span class="text-muted fw-normal" style="font-size:0.65rem;">(Presiona Enter)</span></label>
+                            <div class="chips-container" id="ed_chips_box" onclick="document.getElementById('ed_destino_input').focus()">
+                                <input type="text" id="ed_destino_input" list="listaGeocercas" placeholder="Escribe destino y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_box', edChipsArray)">
                             </div>
                         </div>
-                        <div class="col-12">
+                        <div class="col-8">
                             <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Contenedores / Cajas:</label>
-                            <div class="chips-container mb-2 border-primary" id="ed_chips_cont_box" onclick="this.querySelector('input').focus()">
-                                <input type="text" placeholder="Escribe y da Enter..." onkeydown="manejarChipInput(event, 'ed_chips_cont_box', edChipsContArray)">
+                            <div class="chips-container border-primary" id="ed_chips_cont_box" onclick="document.getElementById('ed_cont_input').focus()">
+                                <input type="text" id="ed_cont_input" placeholder="Escribe contenedor..." onkeydown="manejarChipInput(event, 'ed_chips_cont_box', edChipsContArray)">
                             </div>
                         </div>
-                        <div class="col-12">
-                            <label class="fw-bold text-info mb-1" style="font-size:0.75rem;"><i class="fa-regular fa-calendar-check"></i> Hora Programada (Opcional):</label>
-                            <input type="datetime-local" id="ed_t_programada" class="form-control form-control-sm bg-light border-info">
+                        <div class="col-4">
+                            <label class="fw-bold text-info mb-1" style="font-size:0.75rem;"><i class="fa-regular fa-calendar-check"></i> Fecha/Hora Prog.:</label>
+                            <input type="datetime-local" id="ed_t_programada" class="form-control form-control-sm border-info bg-light">
                         </div>
                     </div>
+
                     <div id="ed_operador_wialon_wrapper" class="mb-3">
                         <label class="fw-bold text-secondary mb-1" style="font-size:0.75rem;">Operador Wialon:</label>
                         <select id="ed_operador_wialon" class="form-select form-select-sm bg-light text-uppercase"></select>
