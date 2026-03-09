@@ -626,8 +626,8 @@ function confirmarNotificacion(id, isSeguridad) {
     }
     
     let vId = n.vId; 
-    let detalleLog = `${n.detalle} | Ocurrió a las ${formatTimeFriendly(n.t_evento)}`; 
-    if (nota) detalleLog += ` | Nota C4: ${nota}`;
+    // NUEVO FORMATO DE LOG: Prioriza la nota del monitorista con un emoji
+    let detalleLog = nota ? `🗣️ ${nota} (Auto: ${n.detalle})` : `${n.detalle}`;
     
     if (n.tipo === "SALIDA") { 
         db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); 
@@ -642,7 +642,7 @@ function confirmarNotificacion(id, isSeguridad) {
         registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); 
     } 
     else if (n.tipo === "PARADA") { 
-        db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null }); // ¡Aquí borramos la alerta de la tabla!
+        db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null });
         registrarLog(vId, 'Justificó PARADA', detalleLog); 
     } 
     else if (n.tipo === "REANUDACION") { 
@@ -668,10 +668,9 @@ function rechazarNotificacion(id, isSeguridad) {
     let inputEl = document.getElementById('nota_hub_' + id); 
     let nota = inputEl ? inputEl.value.trim() : ""; 
     
-    let detalleLog = `Descartó alerta de ${n.tipo}`; 
-    if(nota) detalleLog += ` | Nota: ${nota}`;
+    // NUEVO FORMATO DE LOG
+    let detalleLog = nota ? `🗣️ ${nota} (Descartó alerta: ${n.tipo})` : `Descartó alerta de ${n.tipo}`; 
     
-    // Si era una parada, borramos la alerta roja de la tabla
     if (n.tipo === "PARADA" || n.tipo === "REANUDACION") {
         db.ref('viajes_activos/'+n.vId+'/alerta_detenida').set(null);
     }
@@ -2353,3 +2352,4 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
