@@ -51,9 +51,10 @@ let estadoTokens = {};
 let datosAgrupadosGlobal = {}; 
 let mapaMarcadores = {}; 
 let salidasPendientes = {}; 
-let finalizacionesPendientes = {}; // Arribos que volvieron a moverse
+let finalizacionesPendientes = {}; 
+let arribosPendientes = {}; 
 
-// NUEVO: HUB DE NOTIFICACIONES GLOBALES
+// NUEVO: VARIABLES PARA LOS HUBS DE AUDITORÍA
 let alertasSeguridad = {}; 
 let alertasLogistica = {};
 
@@ -93,7 +94,7 @@ const columnasDef = {
     'col-accion': { titulo: '<i class="fa-solid fa-bars"></i>', ancho: '65' }
 };
 
-// FIX PANTALLA BLANCA: Auto-Reparación de Columnas si el localStorage falla
+// FIX PANTALLA BLANCA: Auto-Reparación de Columnas si el localStorage falla o es versión vieja
 let colOrder = JSON.parse(localStorage.getItem('tms_colOrder'));
 if (!colOrder || !Array.isArray(colOrder) || colOrder.length !== Object.keys(columnasDef).length || colOrder.some(c => !columnasDef[c])) {
     colOrder = Object.keys(columnasDef);
@@ -126,6 +127,10 @@ window.estatusData = {
 function limpiarStr(str) {
     if(!str) return "";
     return String(str).trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function escapeSafe(str) { 
+    return str ? String(str).replace(/'/g, "\\'") : ""; 
 }
 
 function hexToRgba(hex, alpha) {
@@ -193,6 +198,18 @@ function formatTimeFriendly(unixMillis) {
     let timeStr = d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
     if(d.toDateString() === today.toDateString()) return timeStr;
     return d.toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) + " " + timeStr; 
+}
+
+function formatTimeDiff(mins) {
+    let m = Math.abs(mins);
+    let d = Math.floor(m / 1440); 
+    let h = Math.floor((m % 1440) / 60); 
+    let remM = m % 60;
+    let str = []; 
+    if(d > 0) str.push(`${d}d`); 
+    if(h > 0) str.push(`${h}h`); 
+    if(remM > 0 || str.length === 0) str.push(`${remM}m`);
+    return str.join(' ');
 }
 
 function getLocalISO(unixMillis) {
@@ -425,8 +442,8 @@ function actualizarMarcadoresMapa() {
 
             let popupContent = `
                 <div style="text-align:center; min-width: 160px; font-family: 'Inter', sans-serif;">
-                    <b style="font-size:15px; color:#0f172a; text-transform:uppercase;">${uData.name}</b><br>
-                    <span style="font-size:11px; color:#64748b; font-weight:bold;">${operador}</span><br>
+                    <b style="font-size:15px; color:#0f172a; text-transform:uppercase;">${escapeSafe(uData.name)}</b><br>
+                    <span style="font-size:11px; color:#64748b; font-weight:bold;">${escapeSafe(operador)}</span><br>
                     <div style="margin-top:5px; margin-bottom:5px; background:${isMoving?'#10b981':'#64748b'}; color:white; border-radius:4px; padding:2px; font-weight:bold; font-size:12px;">${vel} km/h</div>
                     <b style="font-size:11px; color:#0284c7;">${est}</b><br>
                     <span style="color:#94a3b8; font-size:10px;">Act: hace ${timeAgo(uData.pos.t)}</span>
@@ -474,42 +491,190 @@ function pintarGeocercasEnMapa() {
         }
     });
 }
-
 // ============================================================================
-// PARTE 2: ACCIONES SECUNDARIAS, WHATSAPP, CAPTURAS Y NUEVOS VIAJES
+// PARTE 2: HUBS DE AUDITORÍA, ACCIONES SECUNDARIAS, WHATSAPP Y CAPTURAS
 // ============================================================================
 
-// --- NUEVO: SISTEMA DE ALERTAS GLOBALES ---
-function enviarNotificacionPersistente(vId, unidadName, tipo, detalle) {
-    let idLogico = vId + "_" + tipo; 
-    db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { 
-        if(!snap.exists()) { 
-            db.ref('notificaciones_pendientes/' + idLogico).set({ vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() }); 
-        } 
-    });
-}
-
-// Escuchar alertas en tiempo real para avisos de "Reanudación"
+// --- SISTEMA CENTRALIZADO DE NOTIFICACIONES Y AUDITORÍA ---
 db.ref('notificaciones_pendientes').on('value', snap => {
     let data = snap.val() || {}; 
     alertasSeguridad = {}; 
     alertasLogistica = {};
     
     Object.keys(data).forEach(k => { 
-        let notif = data[k]; notif.id = k; 
-        if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) alertasLogistica[k] = notif; 
-        else alertasSeguridad[k] = notif; 
-    });
-    
-    // Si hay una reanudación, mostramos un Toast al monitorista automáticamente
-    Object.values(alertasSeguridad).forEach(n => {
-        if(n.tipo === 'REANUDACION') {
-            mostrarNotificacion(`✅ La unidad ${n.unidad} retomó su ruta (Reanudación).`);
-            // Auto-limpiar la alerta de la nube para que no sature la pantalla
-            setTimeout(() => db.ref('notificaciones_pendientes/' + n.id).remove(), 6000);
+        let notif = data[k]; 
+        notif.id = k; 
+        // Clasificamos si es Logística o Seguridad
+        if (['SALIDA', 'ARRIBO', 'FINALIZACION'].includes(notif.tipo)) {
+            alertasLogistica[k] = notif; 
+        } else {
+            alertasSeguridad[k] = notif; 
         }
     });
+    actualizarBotonesHubs();
 });
+
+function enviarNotificacionPersistente(vId, unidadName, tipo, detalle) {
+    let idLogico = vId + "_" + tipo; 
+    db.ref('notificaciones_pendientes/' + idLogico).once('value', snap => { 
+        if(!snap.exists()) { 
+            db.ref('notificaciones_pendientes/' + idLogico).set({ 
+                vId: vId, unidad: unidadName, tipo: tipo, detalle: detalle, t_evento: Date.now() 
+            }); 
+        } 
+    });
+}
+
+function actualizarBotonesHubs() {
+    let cSeg = Object.keys(alertasSeguridad).length; 
+    let cLog = Object.keys(alertasLogistica).length;
+    
+    let bSeg = document.getElementById("btnHubSeguridad"); 
+    let lSeg = document.getElementById("lblCountSeguridad");
+    if(bSeg && lSeg) { 
+        if(cSeg > 0) { 
+            lSeg.innerText = cSeg; 
+            bSeg.classList.remove("d-none"); 
+        } else { 
+            bSeg.classList.add("d-none"); 
+            try { bootstrap.Modal.getInstance(document.getElementById('modalHubSeguridad')).hide(); } catch(e){} 
+        } 
+    }
+    
+    let bLog = document.getElementById("btnHubLogistico"); 
+    let lLog = document.getElementById("lblCountLogistico");
+    if(bLog && lLog) { 
+        if(cLog > 0) { 
+            lLog.innerText = cLog; 
+            bLog.classList.remove("d-none"); 
+        } else { 
+            bLog.classList.add("d-none"); 
+            try { bootstrap.Modal.getInstance(document.getElementById('modalHubLogistico')).hide(); } catch(e){} 
+        } 
+    }
+}
+
+function abrirHubSeguridad() {
+    let container = document.getElementById("listaHubSeguridad"); 
+    container.innerHTML = "";
+    let count = Object.keys(alertasSeguridad).length; 
+    if (count === 0) return;
+    
+    Object.values(alertasSeguridad).forEach(n => {
+        let icon = n.tipo === "PARADA" ? "fa-stop text-danger" : (n.tipo === "REANUDACION" ? "fa-play text-success" : "fa-triangle-exclamation text-warning");
+        let colorClass = n.tipo === "PARADA" ? "border-danger" : (n.tipo === "REANUDACION" ? "border-success" : "border-warning");
+        
+        container.innerHTML += `
+        <div class="bg-white p-3 rounded shadow-sm border ${colorClass} mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${n.unidad}</div>
+                    <div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Hora Sensor: ${formatTimeFriendly(n.t_evento)})</div>
+                </div>
+            </div>
+            <textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="2" placeholder="Justificación (Obligatoria para paradas)..."></textarea>
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', true)"><i class="fa-solid fa-xmark"></i> Falsa Alarma</button>
+                <button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', true)"><i class="fa-solid fa-check"></i> Confirmar y Guardar</button>
+            </div>
+        </div>`;
+    }); 
+    new bootstrap.Modal(document.getElementById('modalHubSeguridad')).show();
+}
+
+function abrirHubLogistico() {
+    let container = document.getElementById("listaHubLogistico"); 
+    container.innerHTML = "";
+    let count = Object.keys(alertasLogistica).length; 
+    if (count === 0) return;
+    
+    Object.values(alertasLogistica).forEach(n => {
+        let icon = n.tipo === "SALIDA" ? "fa-rocket text-primary" : (n.tipo === "ARRIBO" ? "fa-map-pin text-success" : "fa-flag-checkered text-dark"); 
+        let borderClass = n.tipo === "SALIDA" ? "border-primary" : (n.tipo === "ARRIBO" ? "border-success" : "border-dark");
+        
+        container.innerHTML += `
+        <div class="bg-white p-3 rounded shadow-sm border ${borderClass} mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <div class="fw-bold text-dark" style="font-size:0.95rem;"><i class="fa-solid ${icon} me-1"></i> ${n.unidad}</div>
+                    <div class="text-muted" style="font-size:0.8rem;">${n.detalle} (Hora Sensor: ${formatTimeFriendly(n.t_evento)})</div>
+                </div>
+            </div>
+            <textarea id="nota_hub_${n.id}" class="form-control border-secondary mb-2" rows="1" placeholder="Comentario opcional (Ej. Sello de caja)..."></textarea>
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn btn-sm btn-outline-danger fw-bold px-3" onclick="rechazarNotificacion('${n.id}', false)"><i class="fa-solid fa-xmark"></i> Descartar</button>
+                <button class="btn btn-sm btn-success fw-bold px-3" onclick="confirmarNotificacion('${n.id}', false)"><i class="fa-solid fa-check"></i> Confirmar Evento</button>
+            </div>
+        </div>`;
+    }); 
+    new bootstrap.Modal(document.getElementById('modalHubLogistico')).show();
+}
+
+function confirmarNotificacion(id, isSeguridad) {
+    UI_PAUSED = false;
+    let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; 
+    if(!n) return;
+    
+    let inputEl = document.getElementById('nota_hub_' + id); 
+    let nota = inputEl ? inputEl.value.trim() : "";
+    
+    if(isSeguridad && n.tipo === "PARADA" && !nota) {
+        return alert("⚠️ Por protocolo de auditoría, debes escribir una justificación obligatoria para la parada.");
+    }
+    
+    let vId = n.vId; 
+    let detalleLog = `${n.detalle} | Ocurrió a las ${formatTimeFriendly(n.t_evento)}`; 
+    if (nota) detalleLog += ` | Nota C4: ${nota}`;
+    
+    if (n.tipo === "SALIDA") { 
+        db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); 
+        registrarLog(vId, 'Confirmó SALIDA', detalleLog); 
+    } 
+    else if (n.tipo === "ARRIBO") { 
+        db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); 
+        registrarLog(vId, 'Confirmó ARRIBO', detalleLog); 
+    } 
+    else if (n.tipo === "FINALIZACION") { 
+        db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); 
+        registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); 
+    } 
+    else if (n.tipo === "PARADA") { 
+        db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: true }); 
+        registrarLog(vId, 'Justificó PARADA', detalleLog); 
+    } 
+    else if (n.tipo === "REANUDACION") { 
+        db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); 
+        registrarLog(vId, 'Confirmó REANUDACIÓN', detalleLog); 
+    }
+    else if (n.tipo === "DESCONEXION") { 
+        registrarLog(vId, 'Confirmó ALERTA CONEXIÓN', detalleLog); 
+    }
+    
+    db.ref('notificaciones_pendientes/' + id).remove(); 
+    mostrarNotificacion("✅ Evento guardado y auditado."); 
+    
+    if(isSeguridad) setTimeout(abrirHubSeguridad, 100); 
+    else setTimeout(abrirHubLogistico, 100);
+}
+
+function rechazarNotificacion(id, isSeguridad) {
+    UI_PAUSED = false;
+    let n = isSeguridad ? alertasSeguridad[id] : alertasLogistica[id]; 
+    if(!n) return;
+    
+    let inputEl = document.getElementById('nota_hub_' + id); 
+    let nota = inputEl ? inputEl.value.trim() : ""; 
+    
+    let detalleLog = `Descartó alerta de ${n.tipo}`; 
+    if(nota) detalleLog += ` | Nota: ${nota}`;
+    
+    registrarLog(n.vId, `Canceló Alerta`, detalleLog); 
+    db.ref('notificaciones_pendientes/' + id).remove(); 
+    mostrarNotificacion("🚫 Evento descartado."); 
+    
+    if(isSeguridad) setTimeout(abrirHubSeguridad, 100); 
+    else setTimeout(abrirHubLogistico, 100);
+}
 
 // --- ACCIONES SECUNDARIAS ---
 function cambiarEstatus(val, vId) { 
@@ -529,8 +694,8 @@ function editarUbicacionManual(vId) {
         let isCoords = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?)[,\s]+[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/.test(rawText);
         if (isCoords) {
             let coords = rawText.replace(/\s/g, '');
-            // Corrección de enlace para Google Maps
-            locText = `<a href="https://www.google.com/maps?q=${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`;
+            // Corrección universal para Google Maps
+            locText = `<a href="https://www.google.com/maps?q=$${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`;
         }
         db.ref(`viajes_activos/${vId}`).update({ ubicacion_manual: locText, ubicacion_manual_raw: rawText, t_ubicacion_manual: Date.now() });
         registrarLog(vId, 'Actualizó Ubicación', rawText); 
@@ -578,10 +743,7 @@ function guardarLogManual() {
     
     registrarLog(uId, "Agregó Nota", txt); 
     let v = viajesActivos[uId]; 
-    if (v && v.alerta_detenida) {
-        db.ref('viajes_activos/'+uId+'/alerta_detenida').set(null);
-    }
-    
+    if (v && v.alerta_detenida) db.ref('viajes_activos/'+uId+'/alerta_detenida').set(null);
     try { bootstrap.Modal.getInstance(document.getElementById('modalLog')).hide(); } catch(e){} 
     mostrarNotificacion("Nota guardada en el historial.");
 }
@@ -604,14 +766,12 @@ function enviarWA(vId) {
     let locLink = addrText; 
     let geoTextWA = "";
     
-    if (pos) {
+    if (pos && typeof pos.y !== 'undefined') {
         let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
         if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        
-        // FIX: Enlace universal de Google Maps
-        locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
+        locLink = `${addrText} \nhttps://www.google.com/maps?q=$${pos.y},${pos.x}`;
     }
     
     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
@@ -638,10 +798,10 @@ function generarReporteGrupal(cId, sId, titulo) {
         let locLink = v.ubicacion_manual_raw || "Manual"; 
         let geoTextWA = "";
         
-        if (pos) {
+        if (pos && typeof pos.y !== 'undefined') {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
             if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-            locLink = `https://www.google.com/maps?q=${pos.y},${pos.x}`;
+            locLink = `https://www.google.com/maps?q=$${pos.y},${pos.x}`;
         }
         
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
@@ -774,111 +934,6 @@ function expandirRuta(vId) {
     } 
 }
 
-function abrirModalSalidasPendientes() {
-    let container = document.getElementById('listaSalidasContainer'); 
-    container.innerHTML = "";
-    let mTitle = document.querySelector('#modalSalidasPendientes .modal-title');
-    if (mTitle) mTitle.innerHTML = `<i class="fa-solid fa-bell me-2"></i> CONFIRMACIÓN DE EVENTOS GPS`;
-    
-    Object.keys(salidasPendientes).forEach(vId => {
-        let info = salidasPendientes[vId];
-        container.innerHTML += `<div class="d-flex justify-content-between align-items-center bg-white p-2 rounded shadow-sm border border-danger mb-2" id="salida_pend_${vId}">
-                <div><div class="fw-bold text-dark" style="font-size:0.85rem;">${info.unidad}</div><div class="text-muted" style="font-size:0.7rem;"><i class="fa-solid fa-location-dot"></i> Origen: ${info.origen}</div></div>
-                <button class="btn btn-sm btn-danger fw-bold px-3 py-1 rounded-pill shadow-sm" onclick="confirmarSalidaPendiente('${vId}', '${info.unidad}')"><i class="fa-solid fa-check me-1"></i> Confirmar Salida</button></div>`;
-    });
-    
-    Object.keys(arribosPendientes).forEach(vId => {
-        let info = arribosPendientes[vId];
-        container.innerHTML += `<div class="d-flex justify-content-between align-items-center bg-white p-2 rounded shadow-sm border border-primary mb-2" id="arribo_pend_${vId}">
-                <div><div class="fw-bold text-dark" style="font-size:0.85rem;">${info.unidad}</div><div class="text-muted" style="font-size:0.7rem;"><i class="fa-solid fa-map-pin text-primary"></i> Llegó a: ${info.destino}</div></div>
-                <button class="btn btn-sm btn-primary fw-bold px-3 py-1 rounded-pill shadow-sm" onclick="confirmarArriboPendiente('${vId}', '${info.unidad}')"><i class="fa-solid fa-check me-1"></i> Confirmar Arribo</button></div>`;
-    });
-    
-    new bootstrap.Modal(document.getElementById('modalSalidasPendientes')).show();
-}
-
-window.confirmarSalidaPendiente = function(vId, nombre) {
-    db.ref('viajes_activos/' + vId + '/t_salida').set(Date.now()); 
-    registrarLog(vId, 'Marcó SALIDA', 'Confirmada desde Panel Inteligente');
-    mostrarNotificacion(`Salida de ${nombre} confirmada.`); 
-    let el = document.getElementById('salida_pend_' + vId); 
-    if(el) el.remove();
-    delete salidasPendientes[vId]; 
-    actualizarBotonFlotanteSalidas();
-};
-
-window.confirmarArriboPendiente = function(vId, nombre) {
-    db.ref('viajes_activos/' + vId).update({ t_arribo: Date.now(), estatus: 's8' });
-    registrarLog(vId, 'Marcó ARRIBO', 'Confirmado desde Panel Inteligente'); 
-    registrarLog(vId, 'Cambió estatus a', '4. Descargando');
-    mostrarNotificacion(`Arribo de ${nombre} confirmado.`); 
-    let el = document.getElementById('arribo_pend_' + vId); 
-    if(el) el.remove();
-    delete arribosPendientes[vId]; 
-    actualizarBotonFlotanteSalidas();
-};
-
-function actualizarBotonFlotanteSalidas() {
-    let sCount = Object.keys(salidasPendientes).length; 
-    let aCount = Object.keys(arribosPendientes).length; 
-    let total = sCount + aCount; 
-    let btn = document.getElementById('btnFloatingDepartures'); 
-    
-    if(total > 0) { 
-        if(aCount > 0 && sCount === 0) { 
-            btn.classList.replace('btn-danger', 'btn-primary'); 
-            btn.style.animation = 'pulseGreen 2s infinite'; 
-            btn.innerHTML = `<i class="fa-solid fa-map-pin me-2"></i> <span id="lblCountSalidas">${total}</span> Arribos Detectados`; 
-        } else { 
-            btn.classList.replace('btn-primary', 'btn-danger'); 
-            btn.style.animation = 'pulseRed 2s infinite'; 
-            btn.innerHTML = `<i class="fa-solid fa-bell me-2"></i> <span id="lblCountSalidas">${total}</span> Eventos GPS`; 
-        }
-        btn.classList.remove('d-none'); 
-    } else { 
-        btn.classList.add('d-none'); 
-        try{ bootstrap.Modal.getInstance(document.getElementById('modalSalidasPendientes')).hide(); }catch(e){} 
-    }
-}
-
-function abrirModalFinalizacionesPendientes() {
-    let container = document.getElementById('listaFinalizacionesContainer'); 
-    container.innerHTML = "";
-    
-    Object.keys(finalizacionesPendientes).forEach(vId => {
-        let info = finalizacionesPendientes[vId];
-        container.innerHTML += `<div class="d-flex justify-content-between align-items-center bg-white p-2 rounded shadow-sm border border-success mb-2" id="fin_pend_${vId}">
-                <div><div class="fw-bold text-dark" style="font-size:0.85rem;">${info.unidad}</div><div class="text-muted" style="font-size:0.7rem;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Salió de su destino</div></div>
-                <button class="btn btn-sm btn-success fw-bold px-3 py-1 rounded-pill shadow-sm" onclick="confirmarFinalizacionPendiente('${vId}', '${info.unidad}')"><i class="fa-solid fa-flag-checkered me-1"></i> Finalizar Viaje</button></div>`;
-    });
-    new bootstrap.Modal(document.getElementById('modalFinalizacionesPendientes')).show();
-}
-
-window.confirmarFinalizacionPendiente = function(vId, nombre) {
-    db.ref('viajes_activos/' + vId + '/t_fin').set(Date.now()); 
-    db.ref('viajes_activos/' + vId + '/estatus').set('s12'); 
-    registrarLog(vId, 'Marcó FINALIZADO', 'Confirmado desde Panel Inteligente'); 
-    mostrarNotificacion(`Viaje de ${nombre} finalizado con éxito.`);
-    let el = document.getElementById('fin_pend_' + vId); 
-    if(el) el.remove(); 
-    delete finalizacionesPendientes[vId]; 
-    actualizarBotonFlotanteFinalizaciones();
-};
-
-function actualizarBotonFlotanteFinalizaciones() {
-    let count = Object.keys(finalizacionesPendientes).length; 
-    let btn = document.getElementById('btnFloatingFinalizations'); 
-    let lbl = document.getElementById('lblCountFinalizations');
-    
-    if(count > 0) { 
-        lbl.innerText = count; 
-        btn.classList.remove('d-none'); 
-    } else { 
-        btn.classList.add('d-none'); 
-        try{ bootstrap.Modal.getInstance(document.getElementById('modalFinalizacionesPendientes')).hide(); }catch(e){} 
-    }
-}
-
 window.avanzarMultiDestino = function(vId) {
     let v = viajesActivos[vId]; 
     if (!v) return;
@@ -915,7 +970,7 @@ function marcarSalida(vId, cIdx) {
     db.ref(`viajes_activos/${vId}`).update(updates); 
     registrarLog(vId, 'Marcó SALIDA');
 }
-
+// UTILIDADES MATEMÁTICAS DE TIEMPO
 function formatTimeDiff(mins) {
     let m = Math.abs(mins);
     let d = Math.floor(m / 1440); 
@@ -999,6 +1054,7 @@ function vincularChoferEnWialon(wialonUnitId, nombreChoferLimpio) {
     }
 }
 
+// --- CREACIÓN DE NUEVOS VIAJES Y EDICIÓN ---
 window.promptNuevoCliente = function() { 
     let n = prompt("Nombre del Nuevo Cliente:"); 
     if(n) { db.ref('clientes').push({nombre: limpiarStr(n), logo: ""}); mostrarNotificacion("Cliente agregado."); } 
@@ -1070,17 +1126,13 @@ function autofillOp(inputEl) {
 function registrarViajesMultiples() {
     let cId = document.getElementById("nv_cliente").value; 
     let sId = document.getElementById("nv_subcliente").value || "N/A";
-    
     if(!cId) return alert("Debes seleccionar un Cliente de la lista.");
     
     let isExterna = document.getElementById("nv_externa").checked; 
     let filas = document.querySelectorAll(".nv-fila");
-    
     if(filas.length === 0) return alert("Añade al menos una unidad al lote.");
     
-    let batchPromises = []; 
-    let errorFound = false;
-    
+    let batchPromises = []; let errorFound = false;
     filas.forEach(fila => {
         if(errorFound) return;
         let uInput = limpiarStr(fila.querySelector(".nv-unidad").value); 
@@ -1096,16 +1148,8 @@ function registrarViajesMultiples() {
         let tProgRaw = fila.querySelector(".nv-t-programada").value; 
         let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
         
-        if(destArr.length === 0) { 
-            alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); 
-            errorFound = true; 
-            return; 
-        }
-        if(!uInput) { 
-            alert("El nombre de la unidad no puede estar vacío"); 
-            errorFound = true; 
-            return; 
-        }
+        if(destArr.length === 0) { alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); errorFound = true; return; }
+        if(!uInput) { alert("El nombre de la unidad no puede estar vacío"); errorFound = true; return; }
         
         let wId = "EXTERNO";
         if (!isExterna) { 
@@ -1113,46 +1157,22 @@ function registrarViajesMultiples() {
             let foundWialon = false;
             for(let k in unidadesGlobales){ 
                 if(limpiarStr(unidadesGlobales[k].name).replace(/[\s\-]/g, "") === nNorm) { 
-                    wId = k; 
-                    uInput = unidadesGlobales[k].name; 
-                    foundWialon = true; 
-                    break; 
+                    wId = k; uInput = unidadesGlobales[k].name; foundWialon = true; break; 
                 } 
             } 
-            if(!foundWialon) { 
-                alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); 
-                errorFound = true; 
-                return; 
-            }
+            if(!foundWialon) { alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); errorFound = true; return; }
         }
         
         let refPush = db.ref('viajes_activos').push();
-        let p = refPush.set({ 
-            id: refPush.key, 
-            wialonId: wId, 
-            cliente: cId, 
-            subcliente: sId, 
-            origen: origen, 
-            destinos: destArr, 
-            destino_idx: 0, 
-            estatus: "s1", 
-            operador: opInput, 
-            contenedores_arr: contArr, 
-            t_programada: tProgTs, 
-            unidadFallback: uInput, 
-            unidadN: uInput 
-        }).then(() => {
+        let p = refPush.set({ id: refPush.key, wialonId: wId, cliente: cId, subcliente: sId, origen: origen, destinos: destArr, destino_idx: 0, estatus: "s1", operador: opInput, contenedores_arr: contArr, t_programada: tProgTs, unidadFallback: uInput, unidadN: uInput }).then(() => {
             registrarLog(refPush.key, "REGISTRÓ VIAJE", isExterna ? "Unidad Externa" : "Unidad GPS");
             if(tProgTs) registrarLog(refPush.key, "Hora de Salida Programada", tProgRaw.replace('T', ' '));
-            if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { 
-                vincularChoferEnWialon(wId, opInputRaw); 
-            }
+            if (!isExterna && opInputRaw && diccChoferesGlobal[opInputRaw]) { vincularChoferEnWialon(wId, opInputRaw); }
         });
         batchPromises.push(p);
     });
     
     if(errorFound) return;
-    
     Promise.all(batchPromises).then(() => { 
         mostrarNotificacion("¡Viajes registrados con éxito!"); 
         try{ bootstrap.Modal.getInstance(document.getElementById('modalNuevoViaje')).hide(); }catch(e){} 
@@ -1213,7 +1233,6 @@ function guardarEdicionViaje() {
     let finalOp = isExt ? limpiarStr(opManual) : limpiarStr(opWialon);
 
     registrarLog(uId, "Editó Datos", "Rutas/Contenedor/Hora"); 
-    
     db.ref('viajes_activos/' + uId).update({ 
         origen: limpiarStr(document.getElementById("ed_origen").value), 
         destinos: edChipsArray, 
@@ -1228,7 +1247,7 @@ function guardarEdicionViaje() {
 }
 
 // ============================================================================
-// PARTE 3: RENDERIZADO DE TABLA, GPS Y FUNCIONES ADMINISTRATIVAS
+// PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON
 // ============================================================================
 
 function renderizarBitacora() {
@@ -1352,21 +1371,13 @@ function renderizarBitacora() {
                             </div>
                         </div>` : `<div style="font-size:0.65rem; color:#94a3b8;">Sin eventos</div>`;
 
-                    // LÓGICA DE ALERTA VISUAL (Parada = Rojo, Reanudación = Verde)
-                    let htmlCajaLog = lastLog;
-                    if (v.alerta_detenida) {
-                        htmlCajaLog = `
-                            <div class="log-alert-container shadow-sm" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Dale clic para escribir qué pasó">
+                    // Mostrar icono rojo parpadeante si hay alerta de parada sin justificar
+                    let htmlCajaLog = v.alerta_detenida 
+                        ? `<div class="log-alert-container shadow-sm" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Dale clic para justificar parada">
                                 <i class="fa-solid fa-bell log-alert-icon"></i>
-                                <div class="log-alert-text">ALERTA: JUSTIFICAR PARADA</div>
-                            </div>`;
-                    } else if (v.alerta_reanudacion) {
-                        htmlCajaLog = `
-                            <div class="log-alert-container shadow-sm" style="border-color: #22c55e !important; background-color: #f0fdf4 !important;" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Revisar y borrar alerta">
-                                <i class="fa-solid fa-truck-fast log-alert-icon" style="color: #16a34a;"></i>
-                                <div class="log-alert-text" style="color: #15803d;">¡UNIDAD EN MOVIMIENTO!</div>
-                            </div>`;
-                    }
+                                <div class="log-alert-text">JUSTIFICAR PARADA</div>
+                           </div>` 
+                        : lastLog;
 
                     let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
                     let optionsHtml = `
@@ -1389,7 +1400,7 @@ function renderizarBitacora() {
                     let cDestino = arrDests[cIdx] || v.destino || "";
                     if (isTripFullyFinished) { cOrigen = v.origen || ""; cDestino = arrDests[totDests - 1] || v.destino || ""; }
 
-                    // SEMÁFORO DIGERIDO CON DÍAS Y HORAS
+                    // LÓGICA DE SEMÁFORO
                     let semaforoHtml = '';
                     if(v.t_programada) {
                         let pTime = new Date(v.t_programada);
@@ -1544,7 +1555,10 @@ function filtrarTablaInteligente() {
     }
 }
 
-// --- INTELIGENCIA DE GPS Y PARADAS MÚLTIPLES ---
+// ============================================================================
+// NUEVA LÓGICA DE HUBS, AUTO-ESTATUS DE PARADAS Y REANUDACIONES
+// ============================================================================
+
 function inyectarGPSenTabla() { 
     Object.keys(viajesActivos).forEach(vId => { 
         try { 
@@ -1555,9 +1569,11 @@ function inyectarGPSenTabla() {
             let isExternal = v.wialonId === "EXTERNO"; 
             let pos = uData ? uData.pos : null; 
             let speed = pos ? pos.s : 0; 
-            let isLost = !uData || (uData && !pos && !isExternal); 
-            let ageSecs = pos ? Math.floor(Date.now()/1000) - pos.t : 0; 
-            let isStale = ageSecs > 600; 
+            
+            let hasCoords = pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined';
+            let isLost = !uData || (!hasCoords && !isExternal); 
+            let ageSecs = pos && pos.t ? Math.floor(Date.now()/1000) - pos.t : 0; 
+            let isStale = ageSecs > 600; // 10 min de desconexión
             
             let row = document.getElementById("row_" + vId); 
             if(row) { 
@@ -1566,17 +1582,17 @@ function inyectarGPSenTabla() {
                 else if (isStale && !isExternal) row.classList.add("lost-connection-row"); 
             } 
             
-            if (isStale && !isExternal && !v.alerta_desconexion) {
-                db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true);
-                registrarLog(vId, "Alerta GPS", "Pérdida de conexión (>10 min)");
-            } else if (!isStale && !isLost && v.alerta_desconexion) {
-                db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null);
-                registrarLog(vId, "Alerta GPS", "Conexión recuperada");
-            }
-
             let safeName = uData ? uData.name : "Desconocida";
 
-            // LÓGICA DE PARADAS Y REANUDACIONES (ANTI-FALSAS ALARMAS)
+            // LOGICA: Desconexiones a Hub de Seguridad
+            if (isStale && !isExternal && !v.alerta_desconexion) {
+                db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true);
+                enviarNotificacionPersistente(vId, safeName, 'DESCONEXION', 'Pérdida de conexión GPS (>10 min)');
+            } else if (!isStale && !isLost && v.alerta_desconexion) {
+                db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null);
+                registrarLog(vId, "Alerta GPS", "Conexión recuperada exitosamente");
+            }
+
             if(!isExternal && !isLost && !isStale) {
                 let zonaGeo = resolverGeocerca(pos.y, pos.x) || uData.zonaOficial;
                 let cOrigen = limpiarStr(v.origen);
@@ -1589,55 +1605,53 @@ function inyectarGPSenTabla() {
                     if (z.includes(cOrigen) || z.includes(cDestino)) isNotInGeofence = false;
                 }
 
+                // LÓGICA: Auto-Estatus y Alertas de Parada (Ignora Geocercas de Cliente)
                 if(v.t_salida && !v.t_arribo) {
                     if (speed < 4) { 
                         if (!v.t_parada_inicio) {
                             db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
                         } else {
                             let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
+                            // Si se para más de 5 mins y NO ESTÁ en cliente -> Auto-Estatus Parado y Manda Alerta
                             if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
                                 db.ref('viajes_activos/'+vId).update({
                                     alerta_detenida: true,
-                                    estatus: 's2' // Auto-estatus a 1.1 PARADO
-                                }); 
-                                registrarLog(vId, "Sistema Automático", "Cambió estatus a 1.1 PARADO (Detenida > 5 min)");
-                                enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min');
+                                    estatus: 's2' // 1.1 PARADO
+                                });
+                                enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
                             }
                         }
                     } else { 
                         if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
                         
+                        // Si vuelve a moverse y estaba "PARADO", auto-cambia a "Ruta" y lanza la Alerta Verde
                         if (v.estatus === 's2' || v.alerta_detenida) {
                             db.ref('viajes_activos/'+vId).update({
                                 alerta_detenida: null,
-                                alerta_reanudacion: true, // Alerta verde
-                                estatus: 's1' // Auto-estatus a 1. Ruta
-                            }); 
-                            registrarLog(vId, "Sistema Automático", "Cambió estatus a 1. Ruta (Movimiento reanudado)");
+                                estatus: 's1' // 1. Ruta
+                            });
                             enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
                         }
                     }
                 }
                 
+                // LÓGICA: Hub Logístico (Salidas de Origen)
                 if (!v.t_salida && !v.salida_notificada && speed >= 4) {
-                    let cOrigen = limpiarStr(v.origen);
                     let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
                     if ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10) {
-                        salidasPendientes[vId] = { unidad: uData.name, origen: cOrigen || 'Base' };
+                        enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
                         db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
-                        actualizarBotonFlotanteSalidas();
                     }
                 }
 
+                // LÓGICA: Hub Logístico (Salidas de Destino / Finalizaciones)
                 if (v.t_arribo && !v.t_fin && !v.fin_notificado && speed >= 10) {
-                    let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
                     let targetDest = arrDests[v.destino_idx || 0] || v.destino;
                     let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
                     
                     if (!zonaActual || !zonaActual.includes(targetDest)) {
-                        finalizacionesPendientes[vId] = { unidad: uData.name };
+                        enviarNotificacionPersistente(vId, safeName, 'FINALIZACION', `Volvió a salir de su destino: ${targetDest}`);
                         db.ref('viajes_activos/'+vId+'/fin_notificado').set(true);
-                        actualizarBotonFlotanteFinalizaciones();
                     }
                 }
             }
@@ -1647,7 +1661,6 @@ function inyectarGPSenTabla() {
                 if (isExternal) { 
                     let timeExtHover = v.t_ubicacion_manual ? formatTimeFriendly(v.t_ubicacion_manual) : '--:--';
                     let timeExtAgo = v.t_ubicacion_manual ? timeAgo(Math.floor(v.t_ubicacion_manual/1000)) : '--';
-                    
                     elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeExtHover}"><span class="text-info">Act: hace ${timeExtAgo}</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
                 } else if (isLost || isStale) { 
                     elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div><div style="font-size:0.65rem; color:#ef4444; font-weight:800;">Modo Offline</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
@@ -1689,7 +1702,7 @@ function inyectarGPSenTabla() {
             } 
             
             let btnName = document.getElementById("name_btn_" + vId); 
-            if (btnName && pos && pos.y && pos.x) { 
+            if (btnName && hasCoords) { 
                 btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); 
             } else if (btnName) { 
                 btnName.setAttribute("onclick", `centrarUnidadMapa(null, null)`); 
@@ -1733,19 +1746,18 @@ function desencadenarGeocoding() {
         if(uData && uData.pos) {
             let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(uData.pos.y, uData.pos.x));
             
+            // LÓGICA: Hub Logístico (Arribos a Destino)
             if(zonaGeo && targetDest && !v.t_arribo && !v.arribo_notificado && zonaGeo.includes(targetDest)) {
-                arribosPendientes[vId] = { unidad: uData.name, destino: targetDest };
+                enviarNotificacionPersistente(vId, uData.name, 'ARRIBO', `Llegó a destino: ${targetDest}`);
                 db.ref('viajes_activos/'+vId+'/arribo_notificado').set(true);
-                actualizarBotonFlotanteSalidas();
             }
             
             let geoKey = `${uData.pos.y.toFixed(4)}_${uData.pos.x.toFixed(4)}`;
             if(!geocodeCache[geoKey] && !geoQueue.find(i => i.key === geoKey)) { 
                 geoQueue.push({ key: geoKey, y: uData.pos.y, x: uData.pos.x, vId: vId, dest: targetDest }); 
             } else if(geocodeCache[geoKey] && targetDest && !v.t_arribo && !v.arribo_notificado && limpiarStr(geocodeCache[geoKey]).includes(targetDest)) {
-                arribosPendientes[vId] = { unidad: uData.name, destino: targetDest };
+                enviarNotificacionPersistente(vId, uData.name, 'ARRIBO', `Llegó a destino: ${targetDest}`);
                 db.ref('viajes_activos/'+vId+'/arribo_notificado').set(true);
-                actualizarBotonFlotanteSalidas();
             }
         }
     });
@@ -1768,9 +1780,8 @@ function procesarFilaDirecciones() {
             if(item.dest && limpiarStr(a).includes(item.dest)) {
                 let v = viajesActivos[item.vId]; 
                 if(v && !v.t_arribo && !v.arribo_notificado) { 
-                    arribosPendientes[item.vId] = { unidad: unidadesGlobales[item.vId]?.name || 'Unidad', destino: item.dest };
+                    enviarNotificacionPersistente(item.vId, unidadesGlobales[item.vId]?.name || 'Unidad', 'ARRIBO', `Llegó a destino: ${item.dest}`);
                     db.ref('viajes_activos/'+item.vId+'/arribo_notificado').set(true);
-                    actualizarBotonFlotanteSalidas();
                 }
             }
         })
@@ -1778,7 +1789,7 @@ function procesarFilaDirecciones() {
         .finally(() => { isGeocoding = false; });
 }
 
-// RESTO DE FUNCIONES DE ADMINISTRACIÓN
+// RESTO DE FUNCIONES DE ADMINISTRACIÓN Y AUTENTICACIÓN
 function vincularOperador() { 
     let u = limpiarStr(document.getElementById("op_unidad").value); 
     let n = limpiarStr(document.getElementById("op_nombre").value); 
