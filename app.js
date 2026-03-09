@@ -628,7 +628,6 @@ function confirmarNotificacion(id, isSeguridad) {
     let vId = n.vId; 
     let defaultAct = "";
     
-    // Nombres base de la acción
     if (n.tipo === "SALIDA") defaultAct = 'Confirmó SALIDA';
     else if (n.tipo === "ARRIBO") defaultAct = 'Confirmó ARRIBO';
     else if (n.tipo === "FINALIZACION") defaultAct = 'Confirmó FINALIZADO';
@@ -636,11 +635,11 @@ function confirmarNotificacion(id, isSeguridad) {
     else if (n.tipo === "REANUDACION") defaultAct = 'Confirmó REANUDACIÓN';
     else if (n.tipo === "DESCONEXION") defaultAct = 'Confirmó ALERTA CONEXIÓN';
     
-    // MAGIA AQUÍ: Si hay nota, la nota se vuelve la acción principal. Si no, usa el default.
     let finalAct = nota ? `🗣️ ${nota}` : defaultAct;
     let finalDet = nota ? `${defaultAct} (Auto: ${n.detalle})` : `${n.detalle}`;
     
-    if (n.tipo === "SALIDA") db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento }); 
+    // MAGIA AQUÍ: Agregamos estatus: 's1' a la SALIDA
+    if (n.tipo === "SALIDA") db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento, estatus: 's1' }); 
     else if (n.tipo === "ARRIBO") db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); 
     else if (n.tipo === "FINALIZACION") db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); 
     else if (n.tipo === "PARADA") db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null });
@@ -2355,6 +2354,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
