@@ -1089,20 +1089,39 @@ window.promptNuevoCliente = function() {
     if(n !== null) { 
         n = limpiarStr(n);
         if(n === '') return alert("⚠️ No puedes registrar un cliente con el nombre vacío.");
-        db.ref('clientes').push({nombre: n, logo: ""}); 
-        mostrarNotificacion("Cliente agregado."); 
+        let newRef = db.ref('clientes').push({nombre: n, logo: ""}); 
+        mostrarNotificacion("Cliente agregado.");
+        setTimeout(() => {
+            let sel = document.getElementById("nv_cliente");
+            if(sel) sel.innerHTML += `<option value="${newRef.key}">${n}</option>`;
+            if(sel) sel.value = newRef.key;
+            cargarSubclientesNuevoViaje();
+        }, 600);
     } 
 };
 
 window.promptNuevoSubcliente = function() { 
     let cId = document.getElementById("nv_cliente").value; 
-    if(!cId) return alert("⚠️ Selecciona un cliente primero."); 
+    if(!cId || cId === "Sin_Cliente") return alert("⚠️ Selecciona un cliente válido primero."); 
     let n = prompt("Nombre del Nuevo Subcliente:"); 
     if(n !== null) { 
         n = limpiarStr(n);
-        if(n === '') return alert("⚠️ No puedes registrar un subcliente con el nombre vacío.");
-        db.ref(`clientes/${cId}/subclientes`).push({nombre: n}); 
-        setTimeout(cargarSubclientesNuevoViaje, 600); 
+        if(n === '') return alert("⚠️ No puedes dejar el nombre vacío.");
+        let newRef = db.ref(`clientes/${cId}/subclientes`).push({nombre: n}); 
+        mostrarNotificacion("Subcliente agregado.");
+        setTimeout(() => {
+            cargarSubclientesNuevoViaje();
+            setTimeout(() => { document.getElementById("nv_subcliente").value = newRef.key; }, 200);
+        }, 600); 
+    } 
+};
+
+window.cargarSubclientesNuevoViaje = function() { 
+    let cId = document.getElementById("nv_cliente").value; 
+    let selSub = document.getElementById("nv_subcliente"); 
+    selSub.innerHTML = '<option value="N/A">-- SIN SUBCLIENTE --</option>'; 
+    if(cId && cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].subclientes) { 
+        selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => `<option value="${k}">${dataClientes[cId].subclientes[k].nombre}</option>`).join(''); 
     } 
 };
 
@@ -1134,15 +1153,6 @@ window.promptNuevoSubclienteEdit = function() {
             cargarSubclientesEdicionViaje();
             setTimeout(() => { document.getElementById("ed_subcliente").value = newRef.key; }, 200);
         }, 600); 
-    } 
-};
-
-window.cargarSubclientesNuevoViaje = function() { 
-    let cId = document.getElementById("nv_cliente").value; 
-    let selSub = document.getElementById("nv_subcliente"); 
-    selSub.innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; 
-    if(cId && dataClientes[cId] && dataClientes[cId].subclientes) { 
-        selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => `<option value="${k}">${dataClientes[cId].subclientes[k].nombre}</option>`).join(''); 
     } 
 };
 
@@ -2234,6 +2244,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
