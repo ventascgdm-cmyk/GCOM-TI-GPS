@@ -2038,14 +2038,21 @@ function procesarFilaDirecciones() {
     isGeocoding = true; 
     let item = geoQueue.shift();
     
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${item.y}&lon=${item.x}&zoom=16`)
+    // Agregamos un Header para forzar el resultado en Español de México
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${item.y}&lon=${item.x}&zoom=16`, {
+        headers: { 'Accept-Language': 'es-MX,es;q=0.9' }
+    })
         .then(r => r.json())
         .then(d => {
             let a = d.display_name || "Sin dirección"; 
             geocodeCache[item.key] = a; 
             localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
             
-            document.querySelectorAll(`.addr-span-${item.key}`).forEach(span => span.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${a}`);
+            // FIX: Usamos el ID directo para evitar que los decimales rompan el código CSS
+            let domCell = document.getElementById(`addr_${item.vId}`);
+            if (domCell) {
+                domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${a}`;
+            }
             
             if(item.dest && limpiarStr(a).includes(item.dest)) {
                 let v = viajesActivos[item.vId]; 
@@ -2055,7 +2062,7 @@ function procesarFilaDirecciones() {
                 }
             }
         })
-        .catch(e => console.log("Geo Err"))
+        .catch(e => console.log("Geo Err: Límite del servidor superado"))
         .finally(() => { isGeocoding = false; });
 }
 
@@ -2405,6 +2412,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
