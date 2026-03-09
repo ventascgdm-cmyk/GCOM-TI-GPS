@@ -639,7 +639,7 @@ function confirmarNotificacion(id, isSeguridad) {
         registrarLog(vId, 'Confirmó FINALIZADO', detalleLog); 
     } 
     else if (n.tipo === "PARADA") { 
-        db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: true }); 
+        db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null }); // ¡Aquí borramos la alerta de la tabla!
         registrarLog(vId, 'Justificó PARADA', detalleLog); 
     } 
     else if (n.tipo === "REANUDACION") { 
@@ -668,6 +668,11 @@ function rechazarNotificacion(id, isSeguridad) {
     let detalleLog = `Descartó alerta de ${n.tipo}`; 
     if(nota) detalleLog += ` | Nota: ${nota}`;
     
+    // Si era una parada, borramos la alerta roja de la tabla
+    if (n.tipo === "PARADA" || n.tipo === "REANUDACION") {
+        db.ref('viajes_activos/'+n.vId+'/alerta_detenida').set(null);
+    }
+
     registrarLog(n.vId, `Canceló Alerta`, detalleLog); 
     db.ref('notificaciones_pendientes/' + id).remove(); 
     mostrarNotificacion("🚫 Evento descartado."); 
@@ -1467,11 +1472,11 @@ function renderizarBitacora() {
 
                     // Mostrar icono rojo parpadeante si hay alerta de parada sin justificar
                     let htmlCajaLog = v.alerta_detenida 
-                        ? `<div class="log-alert-container shadow-sm" onclick="abrirModalLog('${vId}', '${nombreCamion}')" title="Dale clic para justificar parada">
-                                <i class="fa-solid fa-bell log-alert-icon"></i>
-                                <div class="log-alert-text">JUSTIFICAR PARADA</div>
-                           </div>` 
-                        : lastLog;
+    ? `<div class="log-alert-container shadow-sm" onclick="abrirHubSeguridad()" title="Ir al HUB de Seguridad para justificar">
+            <i class="fa-solid fa-bell log-alert-icon"></i>
+            <div class="log-alert-text">ATENDER EN HUB</div>
+       </div>` 
+    : lastLog;
 
                     let curEst = window.estatusData[v.estatus] || window.estatusData["s1"];
                     let optionsHtml = `
@@ -2229,6 +2234,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
