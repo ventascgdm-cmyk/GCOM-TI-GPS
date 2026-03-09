@@ -1081,14 +1081,55 @@ function vincularChoferEnWialon(wialonUnitId, nombreChoferLimpio) {
 // --- CREACIÓN DE NUEVOS VIAJES Y EDICIÓN ---
 window.promptNuevoCliente = function() { 
     let n = prompt("Nombre del Nuevo Cliente:"); 
-    if(n) { db.ref('clientes').push({nombre: limpiarStr(n), logo: ""}); mostrarNotificacion("Cliente agregado."); } 
+    if(n !== null) { 
+        n = limpiarStr(n);
+        if(n === '') return alert("⚠️ No puedes registrar un cliente con el nombre vacío.");
+        db.ref('clientes').push({nombre: n, logo: ""}); 
+        mostrarNotificacion("Cliente agregado."); 
+    } 
 };
 
 window.promptNuevoSubcliente = function() { 
     let cId = document.getElementById("nv_cliente").value; 
-    if(!cId) return alert("Selecciona un cliente."); 
+    if(!cId) return alert("⚠️ Selecciona un cliente primero."); 
     let n = prompt("Nombre del Nuevo Subcliente:"); 
-    if(n) { db.ref(`clientes/${cId}/subclientes`).push({nombre: limpiarStr(n)}); setTimeout(cargarSubclientesNuevoViaje, 600); } 
+    if(n !== null) { 
+        n = limpiarStr(n);
+        if(n === '') return alert("⚠️ No puedes registrar un subcliente con el nombre vacío.");
+        db.ref(`clientes/${cId}/subclientes`).push({nombre: n}); 
+        setTimeout(cargarSubclientesNuevoViaje, 600); 
+    } 
+};
+
+window.promptNuevoClienteEdit = function() { 
+    let n = prompt("Nombre del Nuevo Cliente:"); 
+    if(n !== null) { 
+        n = limpiarStr(n);
+        if(n === '') return alert("⚠️ No puedes dejar el nombre vacío.");
+        let newRef = db.ref('clientes').push({nombre: n, logo: ""}); 
+        mostrarNotificacion("Cliente agregado.");
+        setTimeout(() => {
+            let sel = document.getElementById("ed_cliente");
+            if(sel) sel.innerHTML += `<option value="${newRef.key}">${n}</option>`;
+            if(sel) sel.value = newRef.key;
+            cargarSubclientesEdicionViaje();
+        }, 600);
+    } 
+};
+
+window.promptNuevoSubclienteEdit = function() { 
+    let cId = document.getElementById("ed_cliente").value; 
+    if(!cId || cId === "Sin_Cliente") return alert("⚠️ Selecciona un cliente válido primero."); 
+    let n = prompt("Nombre del Nuevo Subcliente:"); 
+    if(n !== null) { 
+        n = limpiarStr(n);
+        if(n === '') return alert("⚠️ No puedes dejar el nombre vacío.");
+        let newRef = db.ref(`clientes/${cId}/subclientes`).push({nombre: n}); 
+        setTimeout(() => {
+            cargarSubclientesEdicionViaje();
+            setTimeout(() => { document.getElementById("ed_subcliente").value = newRef.key; }, 200);
+        }, 600); 
+    } 
 };
 
 window.cargarSubclientesNuevoViaje = function() { 
@@ -1100,12 +1141,25 @@ window.cargarSubclientesNuevoViaje = function() {
     } 
 };
 
+window.cargarSubclientesEdicionViaje = function(selectedSubId = "N/A") {
+    let cId = document.getElementById("ed_cliente").value;
+    let selSub = document.getElementById("ed_subcliente");
+    selSub.innerHTML = '<option value="N/A">-- SIN SUBCLIENTE --</option>';
+    if(cId && cId !== "Sin_Cliente" && dataClientes[cId] && dataClientes[cId].subclientes) {
+        selSub.innerHTML += Object.keys(dataClientes[cId].subclientes).map(k => {
+            let isSel = (selectedSubId === k) ? 'selected' : '';
+            return `<option value="${k}" ${isSel}>${dataClientes[cId].subclientes[k].nombre}</option>`;
+        }).join('');
+    }
+};
+
 function prepararNuevoViaje() { 
     document.getElementById("nv_cliente").innerHTML = '<option value="">-- SELECCIONE CLIENTE --</option>' + Object.keys(dataClientes).map(k => `<option value="${k}">${dataClientes[k].nombre}</option>`).join('');
     document.getElementById("nv_subcliente").innerHTML = '<option value="">-- SIN SUBCLIENTE --</option>'; 
     document.getElementById("nv_filas_container").innerHTML = ""; 
     document.getElementById("nv_externa").checked = false; 
     agregarFilaNV(); 
+    cargarSubclientesNuevoViaje(); // Carga automática por defecto
 }
 
 let filaContador = 0;
@@ -1150,7 +1204,7 @@ function autofillOp(inputEl) {
 function registrarViajesMultiples() {
     let cId = document.getElementById("nv_cliente").value; 
     let sId = document.getElementById("nv_subcliente").value || "N/A";
-    if(!cId) return alert("Debes seleccionar un Cliente de la lista.");
+    if(!cId) return alert("⚠️ Debes seleccionar un Cliente de la lista.");
     
     let isExterna = document.getElementById("nv_externa").checked; 
     let filas = document.querySelectorAll(".nv-fila");
@@ -1172,8 +1226,8 @@ function registrarViajesMultiples() {
         let tProgRaw = fila.querySelector(".nv-t-programada").value; 
         let tProgTs = tProgRaw ? new Date(tProgRaw).getTime() : null;
         
-        if(destArr.length === 0) { alert(`Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); errorFound = true; return; }
-        if(!uInput) { alert("El nombre de la unidad no puede estar vacío"); errorFound = true; return; }
+        if(destArr.length === 0) { alert(`⚠️ Añade al menos un destino (y da Enter) para la unidad ${uInput || 'vacía'}`); errorFound = true; return; }
+        if(!uInput) { alert("⚠️ El nombre de la unidad no puede estar vacío"); errorFound = true; return; }
         
         let wId = "EXTERNO";
         if (!isExterna) { 
@@ -1184,7 +1238,7 @@ function registrarViajesMultiples() {
                     wId = k; uInput = unidadesGlobales[k].name; foundWialon = true; break; 
                 } 
             } 
-            if(!foundWialon) { alert(`ERROR: La unidad "${uInput}" no existe en Wialon.`); errorFound = true; return; }
+            if(!foundWialon) { alert(`ERROR ESTRICTO: La unidad "${uInput}" no existe en tu lista global de Wialon. Por favor selecciónala del listado.`); errorFound = true; return; }
         }
         
         let refPush = db.ref('viajes_activos').push();
@@ -1231,8 +1285,15 @@ function abrirEdicionViaje(uId, uName) {
     });
 
     document.getElementById("ed_operador").value = isExt ? (v.operador || "") : ""; 
-    document.getElementById("ed_cliente").value = (v.cliente && v.cliente !== "Sin_Cliente" && dataClientes[v.cliente]) ? dataClientes[v.cliente].nombre : "SIN CLIENTE"; 
-    document.getElementById("ed_subcliente").value = (v.subcliente && v.subcliente !== "N/A" && dataClientes[v.cliente] && dataClientes[v.cliente].subclientes && dataClientes[v.cliente].subclientes[v.subcliente]) ? dataClientes[v.cliente].subclientes[v.subcliente].nombre : "SIN SUBCLIENTE"; 
+    
+    // Cargar selectores dinámicos
+    let edCli = document.getElementById("ed_cliente");
+    edCli.innerHTML = '<option value="Sin_Cliente">-- SIN CLIENTE --</option>' + Object.keys(dataClientes).map(k => {
+        let isSel = (v.cliente === k) ? 'selected' : '';
+        return `<option value="${k}" ${isSel}>${dataClientes[k].nombre}</option>`;
+    }).join('');
+    
+    cargarSubclientesEdicionViaje(v.subcliente);
     
     edChipsArray = Array.isArray(v.destinos) ? [...v.destinos] : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []); 
     renderChips('ed_chips_box', edChipsArray);
@@ -1256,8 +1317,13 @@ function guardarEdicionViaje() {
     let opManual = document.getElementById("ed_operador").value;
     let finalOp = isExt ? limpiarStr(opManual) : limpiarStr(opWialon);
 
-    registrarLog(uId, "Editó Datos", "Rutas/Contenedor/Hora"); 
+    let cId = document.getElementById("ed_cliente").value || "Sin_Cliente";
+    let sId = document.getElementById("ed_subcliente").value || "N/A";
+
+    registrarLog(uId, "Editó Datos", "Rutas/Contenedor/Hora/Cliente"); 
     db.ref('viajes_activos/' + uId).update({ 
+        cliente: cId,
+        subcliente: sId,
         origen: limpiarStr(document.getElementById("ed_origen").value), 
         destinos: edChipsArray, 
         contenedores_arr: edChipsContArray, 
@@ -1269,6 +1335,10 @@ function guardarEdicionViaje() {
         try{bootstrap.Modal.getInstance(document.getElementById('modalEditarViaje')).hide();}catch(e){} 
     }); 
 }
+
+// ============================================================================
+// PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON
+// ============================================================================
 
 // ============================================================================
 // PARTE 3: RENDERIZADO DE TABLA Y MOTOR WIALON
@@ -2159,5 +2229,6 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
