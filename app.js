@@ -1828,7 +1828,7 @@ function inyectarGPSenTabla() {
             let hasCoords = pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined';
             let isLost = !uData || (!hasCoords && !isExternal); 
             let ageSecs = pos && pos.t ? Math.floor(Date.now()/1000) - pos.t : 0; 
-            let isStale = ageSecs > 600; // 10 min de desconexión
+            let isStale = ageSecs > 600; 
             
             let row = document.getElementById("row_" + vId); 
             if(row) { 
@@ -1837,23 +1837,6 @@ function inyectarGPSenTabla() {
                 else if (isStale && !isExternal) row.classList.add("lost-connection-row"); 
             } 
             
-            let safeName = uData ? uData.name : "Desconocida";
-            let cOrigen = limpiarStr(v.origen);
-            let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-            let cDestino = limpiarStr(arrDests[v.destino_idx || 0] || v.destino);
-
-            // --- LÓGICA DE AUDITORÍA (Mantenida del original) ---
-            let viajeIniciado = !!v.t_salida;
-            let viajeFinalizado = !!v.t_fin;
-            if (!viajeIniciado && !v.salida_notificada && !isExternal && !isLost && !isStale) {
-                let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                if (speed >= 4 && ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10)) {
-                    enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
-                    db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
-                } 
-            }
-
-            // --- RENDERIZADO VISUAL DE LA CELDA GPS ---
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell) { 
                 if (isExternal) { 
@@ -1864,9 +1847,9 @@ function inyectarGPSenTabla() {
                     let speedBg = (speed > 0 && speed < 100) ? "#10b981" : (speed >= 100 ? "#ef4444" : "#64748b");
                     let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; 
                     
-                    // --- CORRECCIÓN CLAVE: Verificar caché antes de mostrar "Buscando..." ---
+                    // --- AQUÍ ESTÁ LA CORRECCIÓN ---
                     let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
-                    let direccionFinal = geocodeCache[geoKey] 
+                    let addrHTML = geocodeCache[geoKey] 
                         ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
                         : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
                     
@@ -1880,19 +1863,14 @@ function inyectarGPSenTabla() {
                                 <div style="font-size:0.75rem; font-weight:900;"><span class="text-primary">(${timeAgo(pos.t)})</span></div>
                             </div>
                             <div class="d-flex align-items-center w-100">
-                                <a href="http://googleusercontent.com/maps.google.com/3{pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
-                                    <div class="addr-container" id="addr_${vId}">${direccionFinal}</div>
+                                <a href="http://googleusercontent.com/maps.google.com/4{pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
+                                    <div class="addr-container" id="addr_${vId}">${addrHTML}</div>
                                 </a>
                             </div>
                         </div>`; 
                 } 
             } 
-            
-            // Actualización de eventos de click en el nombre de la unidad
-            let btnName = document.getElementById("name_btn_" + vId); 
-            if (btnName && hasCoords) btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); 
-            
-        } catch(e) { console.error("Error en inyectarGPSenTabla:", e); } 
+        } catch(e) { console.error("Error GPS Render:", e); } 
     }); 
     desencadenarGeocoding(); 
 }
@@ -1970,20 +1948,43 @@ async function obtenerDireccionWialon(lat, lon, vId) {
 }
 
 function procesarFilaDirecciones() {
-    if (isGeocoding || geoQueue.length === 0) return; 
+    if (isGeocoding || geoQueue.length === 0) return;
     
     let item = geoQueue.shift();
     
+    // Si ya está en caché, lo pintamos de inmediato y pasamos al siguiente
     if (geocodeCache[item.key]) {
         let domCell = document.getElementById(`addr_${item.vId}`);
         if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[item.key]}`;
         return;
     }
 
-    isGeocoding = true; // Bloqueamos justo antes de la petición
-    obtenerDireccionWialon(item.y, item.x, item.vId).finally(() => {
-        // Liberamos el motor después de 300ms pase lo que pase (éxito o error)
-        setTimeout(() => { isGeocoding = false; }, 300); 
+    isGeocoding = true;
+    
+    // Buscamos el SID del token correspondiente
+    let v = viajesActivos[item.vId];
+    let uData = unidadesGlobales[v?.wialonId];
+    if (!uData) { isGeocoding = false; return; }
+    
+    let tkObj = configSistema.tokens.find(t => t.nombre === uData.tkNombre);
+    let sid = activeSIDs[tkObj?.token]?.sid;
+    
+    if (!sid) { isGeocoding = false; return; }
+
+    let params = { coords: [{ lat: item.y, lon: item.x }], flags: 1255211008, uid: uData.id };
+
+    peticionWialon(tkObj.url, "renderer/get_addresses", params, sid).then(res => {
+        if (res && res[0]) {
+            let direccion = res[0];
+            geocodeCache[item.key] = direccion;
+            localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
+
+            // Actualizamos la celda físicamente
+            let domCell = document.getElementById(`addr_${item.vId}`);
+            if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${direccion}`;
+        }
+    }).finally(() => {
+        setTimeout(() => { isGeocoding = false; }, 200); // 200ms para ir rápido
     });
 }
 
@@ -2156,7 +2157,8 @@ window.onload = function () {
     let sP = localStorage.getItem("tms_pass"); 
     if(sU && sP) autenticarUsuario(sU, sP);
     
-    setInterval(procesarFilaDirecciones, 500); 
+    // Aceleramos la búsqueda de 1.1s a 0.4s ya que Wialon aguanta más carga
+    setInterval(procesarFilaDirecciones, 400);
 };
 
 function autenticarUsuario(aU, aP) {
@@ -2372,6 +2374,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
