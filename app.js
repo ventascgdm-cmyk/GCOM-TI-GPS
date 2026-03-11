@@ -1825,50 +1825,32 @@ function inyectarGPSenTabla() {
             let pos = uData ? uData.pos : null; 
             let speed = pos ? pos.s : 0; 
             
-            let hasCoords = pos && typeof pos.y !== 'undefined' && typeof pos.x !== 'undefined';
-            let isLost = !uData || (!hasCoords && !isExternal); 
-            let ageSecs = pos && pos.t ? Math.floor(Date.now()/1000) - pos.t : 0; 
-            let isStale = ageSecs > 600; 
-            
-            let row = document.getElementById("row_" + vId); 
-            if(row) { 
-                row.classList.remove("lost-connection-row", "stale-row"); 
-                if(isLost && !isExternal) row.classList.add("lost-connection-row"); 
-                else if (isStale && !isExternal) row.classList.add("lost-connection-row"); 
-            } 
-            
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
-            if(elGpsCell) { 
-                if (isExternal) { 
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div></div><div class="d-flex align-items-center gap-2 text-start"><i class="fa-solid fa-pencil text-primary cp" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
-                } else if (isLost || isStale) { 
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
-                } else { 
-                    let speedBg = (speed > 0 && speed < 100) ? "#10b981" : (speed >= 100 ? "#ef4444" : "#64748b");
-                    let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; 
-                    
-                    // --- AQUÍ ESTÁ LA CORRECCIÓN ---
-                    let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
-                    let addrHTML = geocodeCache[geoKey] 
-                        ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
-                        : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
-                    
-                    let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); 
-                    let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; 
-                    
-                    elGpsCell.innerHTML = `
-                        <div class="d-flex flex-column px-1 w-100">
-                            <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1">
-                                <div class="d-flex align-items-center">${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span> ${geoHtml}</div>
-                                <div style="font-size:0.75rem; font-weight:900;"><span class="text-primary">(${timeAgo(pos.t)})</span></div>
-                            </div>
-                            <div class="d-flex align-items-center w-100">
-                                <a href="http://googleusercontent.com/maps.google.com/4{pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
-                                    <div class="addr-container" id="addr_${vId}">${addrHTML}</div>
-                                </a>
-                            </div>
-                        </div>`; 
-                } 
+            if(elGpsCell && !isExternal && pos) { 
+                let speedBg = (speed > 0 && speed < 100) ? "#10b981" : (speed >= 100 ? "#ef4444" : "#64748b");
+                let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; 
+                
+                // --- CLAVE DEL FIX: Revisar el caché de direcciones ---
+                let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
+                let direccionActual = geocodeCache[geoKey] 
+                    ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
+                    : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
+                
+                let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); 
+                let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; 
+                
+                elGpsCell.innerHTML = `
+                    <div class="d-flex flex-column px-1 w-100">
+                        <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1">
+                            <div class="d-flex align-items-center">${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span> ${geoHtml}</div>
+                            <div style="font-size:0.75rem; font-weight:900;"><span class="text-primary">(${timeAgo(pos.t)})</span></div>
+                        </div>
+                        <div class="d-flex align-items-center w-100">
+                            <a href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
+                                <div class="addr-container" id="addr_${vId}">${direccionActual}</div>
+                            </a>
+                        </div>
+                    </div>`; 
             } 
         } catch(e) { console.error("Error GPS Render:", e); } 
     }); 
@@ -1952,7 +1934,7 @@ function procesarFilaDirecciones() {
     
     let item = geoQueue.shift();
     
-    // Si ya está en caché, lo pintamos de inmediato y pasamos al siguiente
+    // Si ya lo tenemos, lo pintamos y saltamos al siguiente
     if (geocodeCache[item.key]) {
         let domCell = document.getElementById(`addr_${item.vId}`);
         if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[item.key]}`;
@@ -1960,10 +1942,9 @@ function procesarFilaDirecciones() {
     }
 
     isGeocoding = true;
-    
-    // Buscamos el SID del token correspondiente
     let v = viajesActivos[item.vId];
     let uData = unidadesGlobales[v?.wialonId];
+    
     if (!uData) { isGeocoding = false; return; }
     
     let tkObj = configSistema.tokens.find(t => t.nombre === uData.tkNombre);
@@ -1975,16 +1956,17 @@ function procesarFilaDirecciones() {
 
     peticionWialon(tkObj.url, "renderer/get_addresses", params, sid).then(res => {
         if (res && res[0]) {
-            let direccion = res[0];
-            geocodeCache[item.key] = direccion;
+            geocodeCache[item.key] = res[0];
             localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
 
-            // Actualizamos la celda físicamente
+            // Actualización forzada del texto
             let domCell = document.getElementById(`addr_${item.vId}`);
-            if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${direccion}`;
+            if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${res[0]}`;
         }
-    }).finally(() => {
-        setTimeout(() => { isGeocoding = false; }, 200); // 200ms para ir rápido
+    }).catch(err => console.error("Wialon Geocode Error:", err))
+    .finally(() => {
+        // Pequeña pausa para no saturar la API
+        setTimeout(() => { isGeocoding = false; }, 300); 
     });
 }
 
@@ -2374,6 +2356,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
