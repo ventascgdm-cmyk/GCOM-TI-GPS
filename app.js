@@ -2268,7 +2268,7 @@ window.onload = function () {
     let sP = localStorage.getItem("tms_pass"); 
     if(sU && sP) autenticarUsuario(sU, sP);
     
-    setInterval(procesarFilaDirecciones, 1100); 
+    setInterval(procesarFilaDirecciones, 300); 
 };
 
 function autenticarUsuario(aU, aP) {
@@ -2484,6 +2484,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
