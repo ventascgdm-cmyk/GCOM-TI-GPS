@@ -2032,65 +2032,74 @@ function desencadenarGeocoding() {
         }
     });
 }
+// --- NUEVA FUNCIÓN: OBTENER DIRECCIÓN DESDE WIALON ---
+async function obtenerDireccionWialon(lat, lon, vId) {
+    let v = viajesActivos[vId];
+    if (!v) return;
 
+    // Si es externo, no intentamos buscar en Wialon
+    if (v.wialonId === "EXTERNO") return;
+
+    let uData = unidadesGlobales[v.wialonId] || encontrarUnidad(v, vId);
+    if (!uData) return;
+
+    // Buscamos el token correspondiente para obtener el SID
+    let tkObj = configSistema.tokens.find(t => t.nombre === uData.tkNombre);
+    if (!tkObj || !activeSIDs[tkObj.token]) return;
+
+    let sid = activeSIDs[tkObj.token].sid;
+    
+    // Configuración de parámetros según SDK de Wialon
+    let params = {
+        coords: [{ lat: lat, lon: lon }],
+        flags: 1255211008, // Flags para dirección detallada
+        uid: uData.id
+    };
+
+    try {
+        let res = await peticionWialon(tkObj.url, "renderer/get_addresses", params, sid);
+        if (res && Array.isArray(res) && res.length > 0) {
+            let direccion = res[0];
+            let geoKey = `${lat.toFixed(4)}_${lon.toFixed(4)}`;
+            
+            // Guardamos en el caché global y local
+            geocodeCache[geoKey] = direccion;
+            localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
+
+            // Actualizamos la celda visualmente
+            let domCell = document.getElementById(`addr_${vId}`);
+            if (domCell) {
+                domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${direccion}`;
+            }
+        }
+    } catch (e) {
+        console.error("Error en Geocoding Wialon:", e);
+    }
+}
 function procesarFilaDirecciones() {
-    if(isGeocoding || geoQueue.length === 0) return; 
+    if (isGeocoding || geoQueue.length === 0) return; 
     isGeocoding = true; 
+    
     let item = geoQueue.shift();
     
-    // Agregamos un Header para forzar el resultado en Español de México
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${item.y}&lon=${item.x}&zoom=16`, {
-        headers: { 'Accept-Language': 'es-MX,es;q=0.9' }
-    })
-        .then(r => r.json())
-        .then(d => {
-            let a = d.display_name || "Sin dirección"; 
-            geocodeCache[item.key] = a; 
-            localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
-            
-            // FIX: Usamos el ID directo para evitar que los decimales rompan el código CSS
-            let domCell = document.getElementById(`addr_${item.vId}`);
-            if (domCell) {
-                domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${a}`;
-            }
-            
-            if(item.dest && limpiarStr(a).includes(item.dest)) {
-                let v = viajesActivos[item.vId]; 
-                if(v && !v.t_arribo && !v.arribo_notificado) { 
-                    enviarNotificacionPersistente(item.vId, unidadesGlobales[item.vId]?.name || 'Unidad', 'ARRIBO', `Llegó a destino: ${item.dest}`);
-                    db.ref('viajes_activos/'+item.vId+'/arribo_notificado').set(true);
-                }
-            }
-        })
-        .catch(e => console.log("Geo Err: Límite del servidor superado"))
-        .finally(() => { isGeocoding = false; });
+    // Verificamos si ya está en caché para evitar peticiones innecesarias
+    if (geocodeCache[item.key]) {
+        let domCell = document.getElementById(`addr_${item.vId}`);
+        if (domCell) {
+            domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[item.key]}`;
+        }
+        isGeocoding = false;
+        return;
+    }
+
+    // Ejecutamos la búsqueda en Wialon
+    obtenerDireccionWialon(item.y, item.x, item.vId).finally(() => {
+        // Reducimos el tiempo de espera a 200ms para que sea casi instantáneo
+        setTimeout(() => { isGeocoding = false; }, 200); 
+    });
 }
 
 // RESTO DE FUNCIONES DE ADMINISTRACIÓN Y AUTENTICACIÓN
-
-// --- NUEVA FUNCIÓN: RESETEO DE CONTRASEÑA ---
-window.resetearPasswordUsuario = function(userId) {
-    // Verificamos permisos de administrador antes de actuar
-    if (!currentUser || currentUser.rol !== "admin") {
-        return alert("Permiso denegado. Solo administradores pueden realizar esta acción.");
-    }
-
-    let nuevaPass = prompt(`Introduce la nueva contraseña para el usuario [${userId}]:`);
-    
-    // Validación básica de longitud
-    if (nuevaPass && nuevaPass.trim().length >= 4) {
-        db.ref(`sistema/usuarios/${userId}`).update({
-            pass: nuevaPass.trim()
-        }).then(() => {
-            mostrarNotificacion(`✅ Contraseña de ${userId} actualizada con éxito.`);
-            actualizarListasAdmin(); // Refresca la lista en el modal
-        }).catch(err => {
-            alert("Error al actualizar en Firebase: " + err.message);
-        });
-    } else if (nuevaPass !== null) {
-        alert("La contraseña es demasiado corta (mínimo 4 caracteres).");
-    }
-};
 
 function vincularOperador() { 
     let u = limpiarStr(document.getElementById("op_unidad").value); 
@@ -2130,6 +2139,30 @@ function crearSubcliente() {
     document.getElementById("sub_nombre").value = ""; 
     mostrarNotificacion("Subcliente creado.");
 }
+
+// --- NUEVA FUNCIÓN: RESETEO DE CONTRASEÑA ---
+window.resetearPasswordUsuario = function(userId) {
+    // Verificamos permisos de administrador antes de actuar
+    if (!currentUser || currentUser.rol !== "admin") {
+        return alert("Permiso denegado. Solo administradores pueden realizar esta acción.");
+    }
+
+    let nuevaPass = prompt(`Introduce la nueva contraseña para el usuario [${userId}]:`);
+    
+    // Validación básica de longitud
+    if (nuevaPass && nuevaPass.trim().length >= 4) {
+        db.ref(`sistema/usuarios/${userId}`).update({
+            pass: nuevaPass.trim()
+        }).then(() => {
+            mostrarNotificacion(`✅ Contraseña de ${userId} actualizada con éxito.`);
+            actualizarListasAdmin(); // Refresca la lista en el modal
+        }).catch(err => {
+            alert("Error al actualizar en Firebase: " + err.message);
+        });
+    } else if (nuevaPass !== null) {
+        alert("La contraseña es demasiado corta (mínimo 4 caracteres).");
+    }
+};
 
 function crearUsuario() { 
     let id = document.getElementById("usr_id").value.trim().toLowerCase();
@@ -2451,6 +2484,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
