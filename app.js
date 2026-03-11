@@ -2067,6 +2067,32 @@ function procesarFilaDirecciones() {
 }
 
 // RESTO DE FUNCIONES DE ADMINISTRACIÓN Y AUTENTICACIÓN
+/**
+ * Permite al administrador resetear la contraseña de un monitorista.
+ * @param {string} userId - El ID del usuario (ej. 'monitor1')
+ */
+function resetearPasswordUsuario(userId) {
+    if (!currentUser || currentUser.rol !== "admin") {
+        return alert("Permiso denegado. Solo administradores pueden realizar esta acción.");
+    }
+
+    let nuevaPass = prompt(`Introduce la nueva contraseña para el usuario [${userId}]:`);
+    
+    if (nuevaPass && nuevaPass.trim().length >= 4) {
+        // En un entorno profesional, aquí deberías usar una librería como bcrypt
+        // Por ahora, actualizaremos el nodo específico en Firebase
+        db.ref(`sistema/usuarios/${userId}`).update({
+            pass: nuevaPass.trim()
+        }).then(() => {
+            mostrarNotificacion(`✅ Contraseña de ${userId} actualizada con éxito.`);
+            actualizarListasAdmin(); // Refresca la UI
+        }).catch(err => {
+            alert("Error al actualizar: " + err.message);
+        });
+    } else if (nuevaPass !== null) {
+        alert("La contraseña debe tener al menos 4 caracteres.");
+    }
+}
 function vincularOperador() { 
     let u = limpiarStr(document.getElementById("op_unidad").value); 
     let n = limpiarStr(document.getElementById("op_nombre").value); 
@@ -2144,6 +2170,21 @@ function actualizarListasAdmin() {
         let usrs = snap.val() || {}; 
         document.getElementById("listaUsuariosAdmin").innerHTML = Object.keys(usrs).map(k => k === 'admin' ? `<li class="list-group-item p-1 fs-8"><b>admin</b> (Maestro)</li>` : `<li class="list-group-item d-flex justify-content-between p-1 fs-8"><b>${k}</b> <span class="ps-1">${usrs[k].nom}</span> <i class="fa-solid fa-trash text-danger cp" onclick="if(confirm('¿Borrar?')) db.ref('sistema/usuarios/${k}').remove()"></i></li>`).join(''); 
     }); 
+    // Dentro de actualizarListasAdmin()...
+document.getElementById("listaUsuariosAdmin").innerHTML = Object.keys(usrs).map(k => {
+    if (k === 'admin') return `<li class="list-group-item p-1 fs-8"><b>admin</b> (Maestro)</li>`;
+    
+    return `
+    <li class="list-group-item d-flex justify-content-between align-items-center p-1 fs-8">
+        <div>
+            <b>${k}</b> <span class="ps-1 text-muted">${usrs[k].nom}</span>
+        </div>
+        <div>
+            <i class="fa-solid fa-key text-warning cp me-2" title="Resetear Contraseña" onclick="resetearPasswordUsuario('${k}')"></i>
+            <i class="fa-solid fa-trash text-danger cp" title="Eliminar Usuario" onclick="if(confirm('¿Borrar usuario ${k}?')) db.ref('sistema/usuarios/${k}').remove()"></i>
+        </div>
+    </li>`;
+}).join('');
 }
 
 function agregarToken() { 
@@ -2412,6 +2453,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
