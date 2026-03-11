@@ -820,7 +820,7 @@ function editarUbicacionManual(vId) {
         if (isCoords) {
             let coords = rawText.replace(/\s/g, '');
             // Corrección universal para Google Maps
-            locText = `<a href="https://www.google.com/maps?q=$${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`;
+            locText = `<a href="https://www.google.com/maps?q=${coords}" target="_blank" class="text-primary text-decoration-underline" title="Abrir en Maps"><i class="fa-solid fa-map-location-dot me-1"></i>${coords}</a>`;
         }
         db.ref(`viajes_activos/${vId}`).update({ ubicacion_manual: locText, ubicacion_manual_raw: rawText, t_ubicacion_manual: Date.now() });
         registrarLog(vId, 'Actualizó Ubicación', rawText); 
@@ -896,7 +896,7 @@ function enviarWA(vId) {
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
         if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
-        locLink = `${addrText} \nhttps://www.google.com/maps?q=$${pos.y},${pos.x}`;
+        locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
     }
     
     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
@@ -926,7 +926,7 @@ function generarReporteGrupal(cId, sId, titulo) {
         if (pos && typeof pos.y !== 'undefined') {
             let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
             if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
-            locLink = `https://www.google.com/maps?q=$${pos.y},${pos.x}`;
+            locLink = `https://www.google.com/maps?q=${pos.y},${pos.x}`;
         }
         
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
@@ -1960,7 +1960,7 @@ function inyectarGPSenTabla() {
                                 <div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}"><span class="${timeColor}">(${timeAgo(pos.t)})</span></div>
                             </div>
                             <div class="d-flex align-items-center w-100">
-                                <a href="https://www.google.com/maps?q=$$${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
+                                <a href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
                                     <div class="addr-container" id="addr_${vId}">${addrText}</div>
                                 </a>
                             </div>
@@ -2498,6 +2498,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
