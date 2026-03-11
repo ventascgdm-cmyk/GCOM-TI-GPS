@@ -1847,16 +1847,12 @@ function inyectarGPSenTabla() {
             // 1. ÚNICA ALERTA PERMITIDA SI AÚN NO ESTÁ EN RUTA: "SALIDA"
             if (!viajeIniciado && !v.salida_notificada && !isExternal && !isLost && !isStale) {
                 let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                
-                // Escenario normal: Arrancó y superó 4 km/h
                 if (speed >= 4 && ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10)) {
                     enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
                     db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
                 } 
-                // CASO EXTREMO: Registraron el viaje tarde y la unidad YA ESTÁ en el destino
                 else if (zonaActual && zonaActual.includes(cDestino) && speed < 4) {
                     enviarNotificacionPersistente(vId, safeName, 'ARRIBO', `⚠️ REGISTRO TARDÍO: La unidad ya está estacionada en el destino final.`);
-                    // Destrabamos el escudo automáticamente poniéndole una salida hace un minuto
                     db.ref('viajes_activos/'+vId).update({
                         t_salida: Date.now() - 60000, 
                         salida_notificada: true,
@@ -1865,10 +1861,8 @@ function inyectarGPSenTabla() {
                 }
             }
 
-            // 2. TODAS LAS DEMÁS ALERTAS SE BLOQUEAN HASTA QUE SE CONFIRME LA SALIDA
+            // 2. ALERTAS POST-SALIDA
             if (viajeIniciado && !viajeFinalizado) {
-                
-                // LÓGICA: Desconexiones a Hub de Seguridad
                 if (isStale && !isExternal && !v.alerta_desconexion) {
                     db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true);
                     enviarNotificacionPersistente(vId, safeName, 'DESCONEXION', 'Pérdida de conexión GPS (>10 min)');
@@ -1885,14 +1879,12 @@ function inyectarGPSenTabla() {
                         if (z.includes(cOrigen) || z.includes(cDestino)) isNotInGeofence = false;
                     }
 
-                    // LÓGICA: Auto-Estatus y Alertas de Parada (Ignora Geocercas de Cliente)
                     if(!v.t_arribo) {
                         if (speed < 4) { 
                             if (!v.t_parada_inicio) {
                                 db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
                             } else {
                                 let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
-                                // Si se para más de 5 mins y NO ESTÁ en cliente -> Auto-Estatus Parado y Manda Alerta
                                 if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
                                     db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2' });
                                     enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
@@ -1900,103 +1892,65 @@ function inyectarGPSenTabla() {
                             }
                         } else { 
                             if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
-                            
-                            // Si vuelve a moverse y estaba "PARADO", auto-cambia a "Ruta" y lanza la Alerta Verde
                             if (v.estatus === 's2' || v.alerta_detenida) {
                                 db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1' });
                                 enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
                             }
                         }
                     }
-
-                    // LÓGICA: Hub Logístico (Salidas de Destino / Finalizaciones)
-                    if (v.t_arribo && !v.t_fin && !v.fin_notificado && speed >= 10) {
-                        let targetDest = arrDests[v.destino_idx || 0] || v.destino;
-                        let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                        
-                        if (!zonaActual || !zonaActual.includes(targetDest)) {
-                            enviarNotificacionPersistente(vId, safeName, 'FINALIZACION', `Volvió a salir de su destino: ${targetDest}`);
-                            db.ref('viajes_activos/'+vId+'/fin_notificado').set(true);
-                        }
-                    }
                 }
             }
             
-            // --- RENDERIZADO VISUAL DEL DATO GPS EN LA CELDA ---
+            // --- RENDERIZADO VISUAL DEL GPS (MODIFICADO PARA DIRECCIONES WIALON) ---
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell) { 
                 if (isExternal) { 
-                    let timeExtHover = v.t_ubicacion_manual ? formatTimeFriendly(v.t_ubicacion_manual) : '--:--';
-                    let timeExtAgo = v.t_ubicacion_manual ? timeAgo(Math.floor(v.t_ubicacion_manual/1000)) : '--';
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeExtHover}"><span class="text-info">Act: hace ${timeExtAgo}</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div></div><div class="d-flex align-items-center gap-2 text-start"><i class="fa-solid fa-pencil text-primary cp" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
                 } else if (isLost || isStale) { 
-                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div><div style="font-size:0.65rem; color:#ef4444; font-weight:800;">Modo Offline</div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
+                    elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">${speed} km/h</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-danger fw-bold" style="font-size:0.65rem;">SIN SEÑAL</span><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
                 } else { 
-                    let speedBg = "#64748b"; 
-                    if(speed > 0 && speed < 100) speedBg = "#10b981"; 
-                    if(speed >= 100) speedBg = "#ef4444"; 
-                    
+                    let speedBg = (speed > 0 && speed < 100) ? "#10b981" : (speed >= 100 ? "#ef4444" : "#64748b");
                     let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; 
-                    let timeColor = 'text-primary'; 
+                    
+                    // Lógica de dirección: Si ya la tenemos en caché, la ponemos; si no, ponemos el spinner
                     let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
+                    let addrHTML = geocodeCache[geoKey] 
+                        ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
+                        : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
+                    
                     let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); 
-                    
-                    let elOldAddr = document.getElementById("addr_" + vId);
-                    let addrText = (elOldAddr && !elOldAddr.innerText.includes("Buscando...")) 
-                        ? elOldAddr.innerHTML 
-                        : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`; 
-                    
-                    if(geocodeCache[geoKey]) {
-                        addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}`; 
-                    }
-                    
                     let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; 
-                    let timeHover = formatTimeFriendly(pos.t); 
                     
                     elGpsCell.innerHTML = `
                         <div class="d-flex flex-column px-1 w-100">
                             <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1">
                                 <div class="d-flex align-items-center">${icon} <span class="speed-badge m-0" style="background-color:${speedBg}; padding:2px 6px;">${speed} km/h</span> ${geoHtml}</div>
-                                <div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeHover}"><span class="${timeColor}">(${timeAgo(pos.t)})</span></div>
+                                <div style="font-size:0.75rem; font-weight:900;"><span class="text-primary">(${timeAgo(pos.t)})</span></div>
                             </div>
                             <div class="d-flex align-items-center w-100">
-                                <a href="https://maps.google.com/?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1" title="Abrir en Maps">
-                                    <div class="addr-container addr-span-${geoKey}" id="addr_${vId}">${addrText}</div>
+                                <a href="https://maps.google.com/?q=$${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
+                                    <div class="addr-container" id="addr_${vId}">${addrHTML}</div>
                                 </a>
                             </div>
                         </div>`; 
                 } 
             } 
             
+            // Actualización del botón de nombre
             let btnName = document.getElementById("name_btn_" + vId); 
-            if (btnName && hasCoords) { 
-                btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); 
-            } else if (btnName) { 
-                btnName.setAttribute("onclick", `centrarUnidadMapa(null, null)`); 
-            } 
+            if (btnName && hasCoords) btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); 
             
+            // Operador
             let wialonDriverObj = uData ? uData.choferObj : null; 
             let elOpWialon = document.getElementById("op_wialon_" + vId); 
-            
             if (elOpWialon) { 
                 if (wialonDriverObj && wialonDriverObj.nombre !== "Sin asignar") { 
-                    let telRaw = wialonDriverObj.tel || ""; 
-                    let cleanTel = String(telRaw).replace(/\D/g,''); 
-                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${wialonDriverObj.nombre}</div><div class="fw-bold text-muted user-select-all mt-1" style="font-size:0.7rem;">${telRaw}</div>`; 
-                } else if (v.operador) { 
-                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${v.operador}</div><div style="font-size:0.6rem; color:#64748b;">(Manual)</div>`; 
-                } else { 
-                    elOpWialon.innerHTML = '<span class="badge bg-secondary w-100 mt-1" style="font-size:0.65rem;">Sin asignar</span>'; 
-                } 
+                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${wialonDriverObj.nombre}</div><div class="fw-bold text-muted mt-1" style="font-size:0.7rem;">${wialonDriverObj.tel || ""}</div>`; 
+                } else {
+                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;">${v.operador || 'Sin asignar'}</div>`;
+                }
             } 
-            
-            let elAlertas = document.getElementById("alertas_" + vId); 
-            if (elAlertas) { 
-                elAlertas.innerHTML = v.alerta ? `<span class="text-danger fw-bold" style="font-size:0.85rem;">${v.alerta.txt}</span>` : `<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>`; 
-            } 
-        } catch(e) { 
-            console.error("Error GPS:", vId, e); 
-        } 
+        } catch(e) { console.error("Error GPS Render:", e); } 
     }); 
     desencadenarGeocoding(); 
 }
@@ -2035,67 +1989,59 @@ function desencadenarGeocoding() {
 // --- NUEVA FUNCIÓN: OBTENER DIRECCIÓN DESDE WIALON ---
 async function obtenerDireccionWialon(lat, lon, vId) {
     let v = viajesActivos[vId];
-    if (!v) return;
-
-    // Si es externo, no intentamos buscar en Wialon
-    if (v.wialonId === "EXTERNO") return;
+    if (!v || v.wialonId === "EXTERNO") return;
 
     let uData = unidadesGlobales[v.wialonId] || encontrarUnidad(v, vId);
     if (!uData) return;
 
-    // Buscamos el token correspondiente para obtener el SID
     let tkObj = configSistema.tokens.find(t => t.nombre === uData.tkNombre);
     if (!tkObj || !activeSIDs[tkObj.token]) return;
 
     let sid = activeSIDs[tkObj.token].sid;
     
-    // Configuración de parámetros según SDK de Wialon
+    // IMPORTANTE: Aseguramos que lat y lon sean números flotantes
     let params = {
-        coords: [{ lat: lat, lon: lon }],
-        flags: 1255211008, // Flags para dirección detallada
+        coords: [{ "lat": parseFloat(lat), "lon": parseFloat(lon) }],
+        flags: 1255211008, 
         uid: uData.id
     };
 
     try {
         let res = await peticionWialon(tkObj.url, "renderer/get_addresses", params, sid);
-        if (res && Array.isArray(res) && res.length > 0) {
+        // Wialon a veces devuelve un array de strings directo o un objeto con direcciones
+        if (res && res.length > 0) {
             let direccion = res[0];
             let geoKey = `${lat.toFixed(4)}_${lon.toFixed(4)}`;
             
-            // Guardamos en el caché global y local
             geocodeCache[geoKey] = direccion;
             localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
 
-            // Actualizamos la celda visualmente
-            let domCell = document.getElementById(`addr_${vId}`);
-            if (domCell) {
-                domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${direccion}`;
+            // Actualización forzada del DOM por ID
+            let domAddr = document.getElementById(`addr_${vId}`);
+            if (domAddr) {
+                domAddr.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${direccion}`;
             }
         }
     } catch (e) {
-        console.error("Error en Geocoding Wialon:", e);
+        console.error("Error API Wialon Geocode:", e);
     }
 }
+
 function procesarFilaDirecciones() {
     if (isGeocoding || geoQueue.length === 0) return; 
-    isGeocoding = true; 
     
     let item = geoQueue.shift();
     
-    // Verificamos si ya está en caché para evitar peticiones innecesarias
     if (geocodeCache[item.key]) {
         let domCell = document.getElementById(`addr_${item.vId}`);
-        if (domCell) {
-            domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[item.key]}`;
-        }
-        isGeocoding = false;
+        if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[item.key]}`;
         return;
     }
 
-    // Ejecutamos la búsqueda en Wialon
+    isGeocoding = true; // Bloqueamos justo antes de la petición
     obtenerDireccionWialon(item.y, item.x, item.vId).finally(() => {
-        // Reducimos el tiempo de espera a 200ms para que sea casi instantáneo
-        setTimeout(() => { isGeocoding = false; }, 200); 
+        // Liberamos el motor después de 300ms pase lo que pase (éxito o error)
+        setTimeout(() => { isGeocoding = false; }, 300); 
     });
 }
 
@@ -2484,6 +2430,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
