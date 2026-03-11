@@ -91,7 +91,6 @@ const columnasDef = {
     'col-horarios': { titulo: 'HORARIOS', ancho: '95' }, 
     'col-estatus': { titulo: 'ESTATUS <i class="fa-solid fa-sort sort-icon" title="Ordenar por Estatus" onclick="cambiarOrden(\'estatus\')"></i>', ancho: '120' },
     'col-gps': { titulo: 'UBICACIÓN Y GEOCERCA', ancho: '420' }, 
-    'col-alertas': { titulo: 'ALERTAS', ancho: '90' },
     'col-historial': { titulo: 'HISTORIAL LOG', ancho: '240' }, 
     'col-accion': { titulo: '<i class="fa-solid fa-bars"></i>', ancho: '65' }
 };
@@ -1752,7 +1751,6 @@ function renderizarBitacora() {
                         </div>
                     </td>`;
                     
-                    tds['col-alertas'] = `<td class="col-alertas align-middle ${hiddenCols['col-alertas'] ? 'd-none' : ''}" id="alertas_${vId}">${v.alerta?'<span class="text-danger fw-bold" style="font-size:0.85rem;">'+v.alerta.txt+'</span>':'<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>'}</td>`;
                     tds['col-historial'] = `<td class="col-historial align-middle ${hiddenCols['col-historial'] ? 'd-none' : ''}">${htmlCajaLog}</td>`;
                     
                     tds['col-accion'] = `<td class="col-accion align-middle ${hiddenCols['col-accion'] ? 'd-none' : ''}" style="overflow: visible !important;">
@@ -1988,12 +1986,7 @@ function inyectarGPSenTabla() {
                 } else { 
                     elOpWialon.innerHTML = '<span class="badge bg-secondary w-100 mt-1" style="font-size:0.65rem;">Sin asignar</span>'; 
                 } 
-            } 
-            
-            let elAlertas = document.getElementById("alertas_" + vId); 
-            if (elAlertas) { 
-                elAlertas.innerHTML = v.alerta ? `<span class="text-danger fw-bold" style="font-size:0.85rem;">${v.alerta.txt}</span>` : `<span class="text-success fw-bold" style="font-size:0.85rem;">OK</span>`; 
-            } 
+            }  
         } catch(e) { 
             console.error("Error GPS:", vId, e); 
         } 
@@ -2498,6 +2491,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
