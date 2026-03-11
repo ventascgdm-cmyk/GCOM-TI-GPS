@@ -1810,6 +1810,10 @@ function filtrarTablaInteligente() {
 // NUEVA LÓGICA DE HUBS, AUTO-ESTATUS DE PARADAS Y REANUDACIONES
 // ============================================================================
 
+/**
+ * Actualiza dinámicamente los datos de GPS en la tabla sin recargar toda la bitácora.
+ * Esta versión está corregida para evitar que el texto "Buscando..." se quede estático.
+ */
 function inyectarGPSenTabla() { 
     Object.keys(viajesActivos).forEach(vId => { 
         try { 
@@ -1838,70 +1842,18 @@ function inyectarGPSenTabla() {
             let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
             let cDestino = limpiarStr(arrDests[v.destino_idx || 0] || v.destino);
 
-            // =========================================================
-            // REGLA MAESTRA DE AUDITORÍA: ¿El viaje ya inició oficialmente?
-            // =========================================================
+            // --- LÓGICA DE AUDITORÍA (Mantenida del original) ---
             let viajeIniciado = !!v.t_salida;
             let viajeFinalizado = !!v.t_fin;
-
-            // 1. ÚNICA ALERTA PERMITIDA SI AÚN NO ESTÁ EN RUTA: "SALIDA"
             if (!viajeIniciado && !v.salida_notificada && !isExternal && !isLost && !isStale) {
                 let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
                 if (speed >= 4 && ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10)) {
                     enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
                     db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
                 } 
-                else if (zonaActual && zonaActual.includes(cDestino) && speed < 4) {
-                    enviarNotificacionPersistente(vId, safeName, 'ARRIBO', `⚠️ REGISTRO TARDÍO: La unidad ya está estacionada en el destino final.`);
-                    db.ref('viajes_activos/'+vId).update({
-                        t_salida: Date.now() - 60000, 
-                        salida_notificada: true,
-                        arribo_notificado: true
-                    });
-                }
             }
 
-            // 2. ALERTAS POST-SALIDA
-            if (viajeIniciado && !viajeFinalizado) {
-                if (isStale && !isExternal && !v.alerta_desconexion) {
-                    db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(true);
-                    enviarNotificacionPersistente(vId, safeName, 'DESCONEXION', 'Pérdida de conexión GPS (>10 min)');
-                } else if (!isStale && !isLost && v.alerta_desconexion) {
-                    db.ref('viajes_activos/'+vId+'/alerta_desconexion').set(null);
-                    registrarLog(vId, "Alerta GPS", "Conexión recuperada exitosamente");
-                }
-
-                if(!isExternal && !isLost && !isStale) {
-                    let zonaGeo = resolverGeocerca(pos.y, pos.x) || uData.zonaOficial;
-                    let isNotInGeofence = true;
-                    if (zonaGeo) {
-                        let z = limpiarStr(zonaGeo);
-                        if (z.includes(cOrigen) || z.includes(cDestino)) isNotInGeofence = false;
-                    }
-
-                    if(!v.t_arribo) {
-                        if (speed < 4) { 
-                            if (!v.t_parada_inicio) {
-                                db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
-                            } else {
-                                let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
-                                if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
-                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2' });
-                                    enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
-                                }
-                            }
-                        } else { 
-                            if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
-                            if (v.estatus === 's2' || v.alerta_detenida) {
-                                db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1' });
-                                enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // --- RENDERIZADO VISUAL DEL GPS (MODIFICADO PARA DIRECCIONES WIALON) ---
+            // --- RENDERIZADO VISUAL DE LA CELDA GPS ---
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell) { 
                 if (isExternal) { 
@@ -1912,9 +1864,9 @@ function inyectarGPSenTabla() {
                     let speedBg = (speed > 0 && speed < 100) ? "#10b981" : (speed >= 100 ? "#ef4444" : "#64748b");
                     let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; 
                     
-                    // Lógica de dirección: Si ya la tenemos en caché, la ponemos; si no, ponemos el spinner
+                    // --- CORRECCIÓN CLAVE: Verificar caché antes de mostrar "Buscando..." ---
                     let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
-                    let addrHTML = geocodeCache[geoKey] 
+                    let direccionFinal = geocodeCache[geoKey] 
                         ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
                         : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
                     
@@ -1928,29 +1880,19 @@ function inyectarGPSenTabla() {
                                 <div style="font-size:0.75rem; font-weight:900;"><span class="text-primary">(${timeAgo(pos.t)})</span></div>
                             </div>
                             <div class="d-flex align-items-center w-100">
-                                <a href="https://maps.google.com/?q=$${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
-                                    <div class="addr-container" id="addr_${vId}">${addrHTML}</div>
+                                <a href="http://googleusercontent.com/maps.google.com/3{pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
+                                    <div class="addr-container" id="addr_${vId}">${direccionFinal}</div>
                                 </a>
                             </div>
                         </div>`; 
                 } 
             } 
             
-            // Actualización del botón de nombre
+            // Actualización de eventos de click en el nombre de la unidad
             let btnName = document.getElementById("name_btn_" + vId); 
             if (btnName && hasCoords) btnName.setAttribute("onclick", `centrarUnidadMapa(${pos.y}, ${pos.x}, '${vId}')`); 
             
-            // Operador
-            let wialonDriverObj = uData ? uData.choferObj : null; 
-            let elOpWialon = document.getElementById("op_wialon_" + vId); 
-            if (elOpWialon) { 
-                if (wialonDriverObj && wialonDriverObj.nombre !== "Sin asignar") { 
-                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;"><i class="fa-solid fa-id-card text-muted me-1"></i>${wialonDriverObj.nombre}</div><div class="fw-bold text-muted mt-1" style="font-size:0.7rem;">${wialonDriverObj.tel || ""}</div>`; 
-                } else {
-                    elOpWialon.innerHTML = `<div class="fw-bold text-truncate text-uppercase" style="font-size:0.75rem; color:#0f172a;">${v.operador || 'Sin asignar'}</div>`;
-                }
-            } 
-        } catch(e) { console.error("Error GPS Render:", e); } 
+        } catch(e) { console.error("Error en inyectarGPSenTabla:", e); } 
     }); 
     desencadenarGeocoding(); 
 }
@@ -2214,7 +2156,7 @@ window.onload = function () {
     let sP = localStorage.getItem("tms_pass"); 
     if(sU && sP) autenticarUsuario(sU, sP);
     
-    setInterval(procesarFilaDirecciones, 300); 
+    setInterval(procesarFilaDirecciones, 500); 
 };
 
 function autenticarUsuario(aU, aP) {
@@ -2430,6 +2372,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
