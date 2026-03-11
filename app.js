@@ -2248,9 +2248,6 @@ function autenticarUsuario(aU, aP) {
     
     db.ref(`sistema/usuarios/${u}`).once('value').then(s => { 
         let user = s.val(); 
-        if(!user && u === "admin" && p === "admin123") {
-            user = { pass: "admin123", rol: "admin", nom: "Administrador Maestro" }; 
-        }
         if(user && user.pass === p) { 
             currentUser = user; 
             localStorage.setItem("tms_user", u); 
@@ -2454,6 +2451,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
