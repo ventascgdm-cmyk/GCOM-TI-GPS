@@ -1818,7 +1818,7 @@ function inyectarGPSenTabla() {
     Object.keys(viajesActivos).forEach(vId => { 
         try { 
             let v = viajesActivos[vId]; 
-            if(typeof v !== 'object' || !v) return; 
+            if(!v || typeof v !== 'object') return; 
             
             let uData = encontrarUnidad(v, vId); 
             let isExternal = v.wialonId === "EXTERNO"; 
@@ -1827,18 +1827,19 @@ function inyectarGPSenTabla() {
             
             let elGpsCell = document.getElementById("gps_cell_" + vId); 
             if(elGpsCell && !isExternal && pos) { 
+                let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
                 let speedBg = (speed > 0 && speed < 100) ? "#10b981" : (speed >= 100 ? "#ef4444" : "#64748b");
                 let icon = speed > 0 ? `<i class="fa-solid fa-truck-fast text-success me-1 fs-6"></i>` : `<i class="fa-solid fa-truck text-secondary me-1 fs-6"></i>`; 
                 
-                // --- CLAVE DEL FIX: Revisar el caché de direcciones ---
-                let geoKey = `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}`; 
-                let direccionActual = geocodeCache[geoKey] 
+                // REVISIÓN DE CACHÉ: Si no existe, preparamos el div para recibir el dato asíncrono
+                let direccionHTML = geocodeCache[geoKey] 
                     ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
                     : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`;
                 
                 let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); 
                 let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; 
                 
+                // Actualizamos el esqueleto pero mantenemos el ID "addr_" estable
                 elGpsCell.innerHTML = `
                     <div class="d-flex flex-column px-1 w-100">
                         <div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1">
@@ -1847,12 +1848,12 @@ function inyectarGPSenTabla() {
                         </div>
                         <div class="d-flex align-items-center w-100">
                             <a href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank" class="addr-link text-start flex-grow-1">
-                                <div class="addr-container" id="addr_${vId}">${direccionActual}</div>
+                                <div class="addr-container" id="addr_${vId}">${direccionHTML}</div>
                             </a>
                         </div>
                     </div>`; 
             } 
-        } catch(e) { console.error("Error GPS Render:", e); } 
+        } catch(e) { console.error("Fallo inyectar GPS:", e); } 
     }); 
     desencadenarGeocoding(); 
 }
@@ -1929,12 +1930,15 @@ async function obtenerDireccionWialon(lat, lon, vId) {
     }
 }
 
+/**
+ * Motor de procesamiento de direcciones basado en la SDK oficial de Wialon.
+ */
 function procesarFilaDirecciones() {
     if (isGeocoding || geoQueue.length === 0) return;
     
     let item = geoQueue.shift();
     
-    // Si ya lo tenemos, lo pintamos y saltamos al siguiente
+    // Verificamos caché local antes de pedir a la API
     if (geocodeCache[item.key]) {
         let domCell = document.getElementById(`addr_${item.vId}`);
         if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[item.key]}`;
@@ -1942,9 +1946,9 @@ function procesarFilaDirecciones() {
     }
 
     isGeocoding = true;
-    let v = viajesActivos[item.vId];
-    let uData = unidadesGlobales[v?.wialonId];
     
+    let v = viajesActivos[item.vId];
+    let uData = unidadesGlobales[v?.wialonId] || encontrarUnidad(v, item.vId);
     if (!uData) { isGeocoding = false; return; }
     
     let tkObj = configSistema.tokens.find(t => t.nombre === uData.tkNombre);
@@ -1952,21 +1956,32 @@ function procesarFilaDirecciones() {
     
     if (!sid) { isGeocoding = false; return; }
 
-    let params = { coords: [{ lat: item.y, lon: item.x }], flags: 1255211008, uid: uData.id };
+    // Parámetros basados en la SDK: coords es un array de objetos {lat, lon}
+    let params = {
+        coords: [{ lat: item.y, lon: item.x }],
+        flags: 1255211008, // Bandas para dirección completa (calle, ciudad, etc)
+        uid: uData.id
+    };
 
     peticionWialon(tkObj.url, "renderer/get_addresses", params, sid).then(res => {
-        if (res && res[0]) {
-            geocodeCache[item.key] = res[0];
+        // En Wialon, la respuesta suele ser un Array de direcciones
+        if (res && Array.isArray(res) && res.length > 0) {
+            let direccion = res[0];
+            
+            // Guardamos en caché para persistencia
+            geocodeCache[item.key] = direccion;
             localStorage.setItem('tms_geoCache', JSON.stringify(geocodeCache));
 
-            // Actualización forzada del texto
+            // Actualización forzada del elemento en la tabla
             let domCell = document.getElementById(`addr_${item.vId}`);
-            if (domCell) domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${res[0]}`;
+            if (domCell) {
+                domCell.innerHTML = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${direccion}`;
+            }
         }
-    }).catch(err => console.error("Wialon Geocode Error:", err))
+    }).catch(e => console.error("Error SDK Wialon:", e))
     .finally(() => {
-        // Pequeña pausa para no saturar la API
-        setTimeout(() => { isGeocoding = false; }, 300); 
+        // Liberamos el motor tras una breve pausa para no saturar
+        setTimeout(() => { isGeocoding = false; }, 300);
     });
 }
 
@@ -2356,6 +2371,7 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
+
 
 
 
