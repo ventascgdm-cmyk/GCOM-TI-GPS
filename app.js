@@ -175,11 +175,15 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
 function resolverGeocerca(lat, lon) {
     if(!geocercasNativas || geocercasNativas.length === 0) return null;
     for(let z of geocercasNativas) {
-        if(!z.p) continue;
+        // Ignorar si no hay puntos o si es una geocerca LINEAL (t === 1)
+        if(!z.p || z.t === 1) continue; 
+        
         if(z.t === 3) { 
+            // Geocerca Circular
             let r = z.p[0].r || 50; 
             if(getDistanceMeters(lat, lon, z.p[0].y, z.p[0].x) <= r) return limpiarStr(z.n); 
-        } else { 
+        } else if(z.t === 2) { 
+            // Geocerca Poligonal
             if(isInsidePolygon([lon, lat], z.p)) return limpiarStr(z.n); 
         }
     }
@@ -484,7 +488,7 @@ function pintarGeocercasEnMapa() {
             let shape;
             if(z.t === 3 && z.p && z.p[0]) {
                 shape = L.circle([z.p[0].y, z.p[0].x], {radius: z.p[0].r, color: colorHex, weight: 3, fillOpacity: 0.2});
-            } else if((z.t === 1 || z.t === 2) && z.p) {
+            } else if(z.t === 2 && z.p) { // <-- Se eliminó z.t === 1 para no pintar líneas
                 shape = L.polygon(z.p.map(pt => [pt.y, pt.x]), {color: colorHex, weight: 3, fillOpacity: 0.2});
             }
             if(shape) {
@@ -894,7 +898,11 @@ function enviarWA(vId) {
         let zonaGeo = (uData && uData.zonaOficial) ? uData.zonaOficial : resolverGeocerca(pos.y, pos.x);
         if(zonaGeo) geoTextWA = `\n📍 *Geocerca:* ${zonaGeo}`;
         let domAddr = document.getElementById("addr_" + vId);
-        if(domAddr && domAddr.innerText !== "Buscando...") { addrText = domAddr.innerText.trim(); } else { addrText = "Ubicación GPS"; }
+        if(domAddr && !domAddr.innerText.includes("Sincronizando")) { 
+            addrText = domAddr.innerText.trim(); 
+        } else { 
+            addrText = `Coord: ${pos.y.toFixed(4)}, ${pos.x.toFixed(4)}`; 
+        }
         locLink = `${addrText} \nhttps://www.google.com/maps?q=${pos.y},${pos.x}`;
     }
     
@@ -1944,9 +1952,21 @@ function inyectarGPSenTabla() {
                     let zonaGeo = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)); 
                     
                     // Verificamos si ya hay caché ANTES de poner "Buscando..."
-                    let addrText = geocodeCache[geoKey] 
-                        ? `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}` 
-                        : `<i class="fa-solid fa-spinner fa-spin text-muted"></i> Buscando...`; 
+                    // Obtenemos el contenedor de la celda para ver qué texto tiene actualmente
+                    let domActual = document.getElementById("addr_" + vId);
+                    let contenidoPrevio = domActual ? domActual.innerHTML : "";
+
+                    let addrText;
+                    if (geocodeCache[geoKey]) {
+                        // Si ya tenemos la dirección cacheadada, la mostramos
+                        addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}`;
+                    } else if (contenidoPrevio && !contenidoPrevio.includes("Sincronizando") && !contenidoPrevio.includes("fa-spinner")) {
+                        // Si no la tenemos aún, pero ya había una dirección en pantalla, LA MANTENEMOS
+                        addrText = contenidoPrevio;
+                    } else {
+                        // Si es la primera vez que carga y no hay historial, mostramos las coordenadas directas
+                        addrText = `<i class="fa-solid fa-location-crosshairs text-muted me-1"></i> Coord: ${pos.y.toFixed(4)}, ${pos.x.toFixed(4)}`;
+                    } 
                     
                     let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; 
                     let timeHover = formatTimeFriendly(pos.t); 
