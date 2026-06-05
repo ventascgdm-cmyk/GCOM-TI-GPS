@@ -1976,15 +1976,26 @@ function inyectarGPSenTabla() {
 
                     let addrText;
                     if (geocodeCache[geoKey]) {
-                        // Si ya tenemos la dirección cacheadada, la mostramos
+                        // 1. Ya tenemos la dirección exacta lista
                         addrText = `<i class="fa-solid fa-map-location-dot text-primary me-1"></i>${geocodeCache[geoKey]}`;
-                    } else if (contenidoPrevio && !contenidoPrevio.includes("Sincronizando") && !contenidoPrevio.includes("fa-spinner")) {
-                        // Si no la tenemos aún, pero ya había una dirección en pantalla, LA MANTENEMOS
+                        // Guardamos esta dirección en la memoria específica de este camión
+                        localStorage.setItem('tms_last_addr_' + vId, geocodeCache[geoKey]);
+                        
+                    } else if (contenidoPrevio && !contenidoPrevio.includes("Sincronizando") && !contenidoPrevio.includes("Coord:") && !contenidoPrevio.includes("Localizando")) {
+                        // 2. Mantenemos intacta la dirección que ya está en pantalla
                         addrText = contenidoPrevio;
+                        
                     } else {
-                        // Si es la primera vez que carga y no hay historial, mostramos las coordenadas directas
-                        addrText = `<i class="fa-solid fa-location-crosshairs text-muted me-1"></i> Coord: ${pos.y.toFixed(4)}, ${pos.x.toFixed(4)}`;
-                    } 
+                        // 3. Si se recargó la página y la pantalla está vacía, buscamos en la memoria del camión
+                        let ultimaDir = localStorage.getItem('tms_last_addr_' + vId);
+                        if (ultimaDir) {
+                            // Ponemos la última conocida en color gris (para que sepas que se está actualizando, pero se vea bien)
+                            addrText = `<i class="fa-solid fa-map-location-dot text-secondary me-1"></i>${ultimaDir}`;
+                        } else {
+                            // 4. Si el camión es totalmente nuevo, dejamos un texto muy sutil y casi transparente
+                            addrText = `<i class="fa-solid fa-location-dot text-muted me-1" style="opacity:0.3;"></i> <span class="text-muted" style="opacity:0.5; font-size:0.65rem;">Localizando...</span>`;
+                        }
+                    }
                     
                     let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2" style="max-width:150px;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : ''; 
                     let timeHover = formatTimeFriendly(pos.t); 
