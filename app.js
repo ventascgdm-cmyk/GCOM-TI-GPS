@@ -674,11 +674,12 @@ function confirmarNotificacion(id, isSeguridad) {
     let finalAct = nota ? `🗣️ ${nota}` : defaultAct;
     let finalDet = nota ? `${defaultAct} (Auto: ${n.detalle})` : `${n.detalle}`;
     
-    if (n.tipo === "SALIDA") db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento, estatus: 's1' }); 
-    else if (n.tipo === "ARRIBO") db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8' }); 
-    else if (n.tipo === "FINALIZACION") db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12' }); 
-    else if (n.tipo === "PARADA") db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null });
-    else if (n.tipo === "REANUDACION") db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null }); 
+    // REEMPLAZO DENTRO DE confirmarNotificacion PARA COINCIDIR CON LOS EVENTOS DEL HUB
+    if (n.tipo === "SALIDA") db.ref('viajes_activos/'+vId).update({ t_salida: n.t_evento, estatus: 's1', t_cambio_estatus: n.t_evento }); 
+    else if (n.tipo === "ARRIBO") db.ref('viajes_activos/'+vId).update({ t_arribo: n.t_evento, estatus: 's8', t_cambio_estatus: n.t_evento }); 
+    else if (n.tipo === "FINALIZACION") db.ref('viajes_activos/'+vId).update({ t_fin: n.t_evento, estatus: 's12', t_cambio_estatus: n.t_evento }); 
+    else if (n.tipo === "PARADA") db.ref('viajes_activos/'+vId).update({ estatus: 's2', alerta_detenida: null, t_cambio_estatus: n.t_evento });
+    else if (n.tipo === "REANUDACION") db.ref('viajes_activos/'+vId).update({ estatus: 's1', alerta_detenida: null, t_cambio_estatus: n.t_evento });
     
     registrarLog(vId, finalAct, finalDet); 
     
@@ -797,17 +798,17 @@ function cambiarEstatus(val, vId) {
 
     if (!isExternal) {
         if (val === 's1' && speed < 4) {
-            let confirmacion = confirm(`⚠️ ALERTA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que está DETENIDA (${speed} km/h).\n\n¿Forzar este cambio?`);
+            let confirmacion = confirm(`⚠️ ALERTA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que está DETENIDA (${speed} km/h).\n\n¿Forzar cambio?`);
             if (!confirmacion) return; 
         } 
         else if (val === 's2' && speed >= 4) {
-            let confirmacion = confirm(`⚠️ ALERTA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que está EN MOVIMIENTO (${speed} km/h).\n\n¿Forzar este cambio?`);
+            let confirmacion = confirm(`⚠️ ALERTA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que está EN MOVIMIENTO (${speed} km/h).\n\n¿Forzar cambio?`);
             if (!confirmacion) return; 
         }
     }
 
-    // SINCRONIZACIÓN DE ESTATUS HACIA HORARIO
-    let updates = { estatus: val, t_cambio_estatus: Date.now() }; // <-- AQUÍ GUARDAMOS EL TIEMPO
+    // SINCRONIZACIÓN COMPLETA DE DROPDOWN -> HORARIOS -> CRONÓMETRO
+    let updates = { estatus: val, t_cambio_estatus: Date.now() };
     if (val === 's1' && !v.t_salida) updates['t_salida'] = Date.now();
     if (val === 's8' && !v.t_arribo) updates['t_arribo'] = Date.now();
     if (val === 's12' && !v.t_fin) updates['t_fin'] = Date.now();
@@ -1165,11 +1166,12 @@ function guardarHorarioModal() {
     if(d) {
         let updates = {};
         updates[field] = d;
+        updates['t_cambio_estatus'] = d; // El cronómetro se sincroniza con la hora exacta que capture el usuario
 
-        // SINCRONIZACIÓN AUTOMÁTICA DE ESTATUS SEGÚN EL HORARIO
-        if (field === 't_salida') updates['estatus'] = 's1';       // 1. Ruta
-        else if (field === 't_arribo') updates['estatus'] = 's8';  // 4. Descargando
-        else if (field === 't_fin') updates['estatus'] = 's12';    // 8. Finalizado
+        // Sincronización estricta de Horario -> Estatus
+        if (field === 't_salida') updates['estatus'] = 's1';       
+        else if (field === 't_arribo') updates['estatus'] = 's8';  
+        else if (field === 't_fin') updates['estatus'] = 's12';    
 
         db.ref('viajes_activos/'+vId).update(updates); 
         registrarLog(vId, 'Modificó horario de', titulo);
