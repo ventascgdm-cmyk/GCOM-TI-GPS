@@ -22,10 +22,12 @@ document.addEventListener('show.bs.dropdown', (e) => {
 });
 
 document.addEventListener('hide.bs.dropdown', (e) => { 
-    UI_PAUSED = false; 
-    let tr = e.target.closest('tr');
-    if(tr) tr.classList.remove('dropdown-active'); // Regresa la fila a la normalidad
-    setTimeout(renderizarBitacora, 200); 
+    // Damos un pequeño respiro antes de reanudar la UI para evitar parpadeos
+    setTimeout(() => { 
+        UI_PAUSED = false; 
+        let tr = e.target.closest('tr');
+        if(tr) tr.classList.remove('dropdown-active'); 
+    }, 300);
 });
 
 document.addEventListener('focusin', (e) => { if(['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) UI_PAUSED = true; });
@@ -1778,7 +1780,7 @@ function renderizarBitacora() {
                     tds['col-accion'] = `<td class="col-accion align-middle ${hiddenCols['col-accion'] ? 'd-none' : ''}" style="overflow: visible !important;">
                         <div class="d-flex align-items-center justify-content-center h-100">
                             <div class="dropdown">
-                                <button class="btn-dots cp bg-transparent border-0" type="button" data-bs-toggle="dropdown" data-bs-boundary="body" title="Más Opciones"><i class="fa-solid fa-ellipsis-vertical fs-5 text-muted"></i></button>
+                                <button class="btn-dots cp bg-transparent border-0" type="button" data-bs-toggle="dropdown" data-bs-display="static" title="Más Opciones"><i class="fa-solid fa-ellipsis-vertical fs-5 text-muted"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 dropdown-menu-custom" style="z-index:99999 !important;">
                                     <li><a class="dropdown-item dropdown-item-custom text-success cp" onclick="enviarWA('${vId}')"><i class="fa-brands fa-whatsapp me-2 fs-5 align-middle"></i> Enviar WhatsApp</a></li>
                                     <li><a class="dropdown-item dropdown-item-custom text-primary cp" onclick="abrirEdicionViaje('${vId}', '${nombreCamion}')"><i class="fa-solid fa-pencil me-2 fs-5 align-middle"></i> Editar Viaje</a></li>
