@@ -41,7 +41,7 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .resizer:hover, .resizing { background: rgba(0, 51, 102, 0.2); border-right: 2px solid var(--grudicom-blue); }
 
 /* CELDAS LIBERADAS Y TINTE DINÁMICO */
-.data-row td { background-color: var(--row-bg, #ffffff) !important; padding: 6px 8px; vertical-align: middle; border-bottom: 1px solid var(--border-col); transition: all 0.2s ease; overflow: visible !important;}
+.data-row td { background-color: var(--row-bg, #ffffff) !important; padding: 3px 4px; vertical-align: middle; border-bottom: 1px solid var(--border-col); transition: all 0.2s ease; overflow: visible !important;}
 .data-row td:first-child { border-left: 1px solid var(--border-col); border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
 .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 .data-row:hover td { filter: brightness(0.96); }
@@ -153,54 +153,46 @@ body.dropdown-open .header-subcliente td { z-index: 0 !important; }
 .oculto-en-captura { display: none !important; opacity: 0 !important; visibility: hidden !important; }
 
 /* =========================================
-   DISEÑO MINIMALISTA PARA RUTA (ORIGEN/DESTINO)
+   DISEÑO MINIMALISTA PARA RUTA (ORIGEN/DESTINO) COMPACTO
    ========================================= */
 .ruta-minimalista {
     display: flex;
     flex-direction: column;
-    align-items: center; /* Centra los elementos horizontalmente */
+    align-items: center;
     justify-content: center;
     font-family: inherit;
-    padding: 5px 0;
+    padding: 2px 0; /* Reducido de 5px */
 }
 
 .ruta-punto {
     font-weight: 600;
-    color: #1e293b; /* Gris muy oscuro, elegante */
-    font-size: 0.90rem;
+    color: #1e293b; 
+    font-size: 0.80rem; /* Ligeramente más pequeño */
     display: flex;
     align-items: center;
-    gap: 6px; /* Espacio entre el ícono y el texto */
+    gap: 4px; /* Menos espacio entre icono y texto */
     margin: 0;
 }
 
-.ruta-origen i { 
-    color: #3b82f6; /* Azul sutil para origen */
-    font-size: 0.75rem; 
-} 
+.ruta-origen i { color: #3b82f6; font-size: 0.70rem; } 
+.ruta-destino i { color: #10b981; font-size: 0.70rem; }
 
-.ruta-destino i { 
-    color: #10b981; /* Verde esmeralda para destino */
-    font-size: 0.75rem; 
-}
-
-/* La pequeña línea conectora entre origen y destino */
+/* Línea conectora más corta */
 .ruta-conexion {
-    height: 14px;
+    height: 8px; /* Era 14px */
     width: 2px;
-    background-color: #cbd5e1; /* Gris claro */
-    margin: 2px 0;
+    background-color: #cbd5e1;
+    margin: 1px 0; /* Era 2px */
     border-radius: 2px;
 }
 
-/* Etiqueta para detalles extra (ej. MRL - XLOG TUMIN) */
 .ruta-detalle {
-    font-size: 0.70rem;
+    font-size: 0.60rem; /* Era 0.70rem */
     color: #64748b;
-    margin-top: 6px;
+    margin-top: 2px; /* Era 6px */
     background-color: #f1f5f9;
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
+    padding: 1px 6px; /* Menos relleno interno */
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0px;
 }
