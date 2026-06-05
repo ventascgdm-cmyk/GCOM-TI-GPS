@@ -85,14 +85,14 @@ function cambiarOrden(col) {
 
 // --- PRIORIDADES ESTRICTAS DE COLUMNAS ---
 const columnasDef = {
-    'col-unidad': { titulo: 'UNIDAD <i class="fa-solid fa-sort sort-icon" title="Ordenar por Unidad" onclick="cambiarOrden(\'unidad\')"></i>', ancho: '140' },
-    'col-operador': { titulo: 'OPERADOR GPS', ancho: '150' },
-    'col-ruta': { titulo: 'RUTA (O ➔ D) <i class="fa-solid fa-sort sort-icon" title="Ordenar por Origen" onclick="cambiarOrden(\'ruta\')"></i>', ancho: '190' },
-    'col-horarios': { titulo: 'HORARIOS', ancho: '95' }, 
-    'col-estatus': { titulo: 'ESTATUS <i class="fa-solid fa-sort sort-icon" title="Ordenar por Estatus" onclick="cambiarOrden(\'estatus\')"></i>', ancho: '120' },
-    'col-gps': { titulo: 'UBICACIÓN Y GEOCERCA', ancho: '420' }, 
-    'col-historial': { titulo: 'HISTORIAL LOG', ancho: '240' }, 
-    'col-accion': { titulo: '<i class="fa-solid fa-bars"></i>', ancho: '65' }
+    'col-unidad': { titulo: 'UNIDAD <i class="fa-solid fa-sort sort-icon" title="Ordenar por Unidad" onclick="cambiarOrden(\'unidad\')"></i>', ancho: '110' },
+    'col-operador': { titulo: 'OPERADOR GPS', ancho: '120' },
+    'col-ruta': { titulo: 'RUTA (O ➔ D) <i class="fa-solid fa-sort sort-icon" title="Ordenar por Origen" onclick="cambiarOrden(\'ruta\')"></i>', ancho: '150' },
+    'col-horarios': { titulo: 'HORARIOS', ancho: '85' }, 
+    'col-estatus': { titulo: 'ESTATUS <i class="fa-solid fa-sort sort-icon" title="Ordenar por Estatus" onclick="cambiarOrden(\'estatus\')"></i>', ancho: '110' },
+    'col-gps': { titulo: 'UBICACIÓN Y GEOCERCA', ancho: '330' }, 
+    'col-historial': { titulo: 'HISTORIAL LOG', ancho: '210' }, 
+    'col-accion': { titulo: '<i class="fa-solid fa-bars"></i>', ancho: '50' }
 };
 
 // FIX PANTALLA BLANCA: Auto-Reparación de Columnas si el localStorage falla o es versión vieja
