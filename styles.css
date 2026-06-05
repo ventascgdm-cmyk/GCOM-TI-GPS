@@ -44,12 +44,11 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .data-row td { background-color: var(--row-bg, #ffffff) !important; padding: 3px 4px; vertical-align: middle; border-bottom: 1px solid var(--border-col); transition: all 0.2s ease; overflow: visible !important;}
 .data-row td:first-child { border-left: 1px solid var(--border-col); border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
 .data-row td:last-child { border-right: 1px solid var(--border-col); border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
-.data-row:hover td { filter: brightness(0.96); }
+/* REEMPLAZO SEGURO DE HOVER PARA NO ROMPER MENÚS FLOTANTES */
+.data-row:hover td { box-shadow: inset 0 0 0 9999px rgba(0,0,0,0.04); }
 
-/* FIX Z-INDEX PARA MENÚS FLOTANTES */
-tr { position: relative; }
-tr.dropdown-active { z-index: 999999 !important; }
-tr.dropdown-active td, tr.dropdown-active th { z-index: 999999 !important; position: relative; }
+/* FIX Z-INDEX PARA MENÚS FLOTANTES - SIN POSITION RELATIVE */
+tr.dropdown-active td, tr.dropdown-active th { z-index: 99999 !important; }
 body.dropdown-open .header-columnas th { z-index: 1 !important; }
 body.dropdown-open .header-cliente td { z-index: 0 !important; }
 body.dropdown-open .header-subcliente td { z-index: 0 !important; }
