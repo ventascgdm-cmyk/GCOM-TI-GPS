@@ -2418,12 +2418,15 @@ async function sincronizarFlotas() {
                         diccZonasNombres[rId] = {}; 
                         
                         if(r.zl) { 
-                            Object.values(r.zl).forEach(z => { 
+                        Object.values(r.zl).forEach(z => { 
+                            // Ignorar geocercas de tipo lineal (t === 1) desde la consulta directa a Wialon
+                            if (z.t !== 1) {
                                 diccZonasReq[rId].push(z.id); 
                                 diccZonasNombres[rId][z.id] = z.n; 
                                 tempGeo.push(z); 
-                            }); 
-                        } 
+                            }
+                        }); 
+                    }
                         
                         if(r.drvrs || r.drv) { 
                             let drivers = r.drvrs || r.drv; 
