@@ -1731,13 +1731,27 @@ function renderizarBitacora() {
                     
                     tds['col-operador'] = `<td class="col-operador align-middle ${hiddenCols['col-operador'] ? 'd-none' : ''}"><div id="op_wialon_${vId}"><span class="badge bg-secondary w-100 mt-1" style="font-size:0.6rem;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</span></div></td>`;
                     
+                    // Lógica para separar el destino principal del detalle (ej. "CDMX (MRL - XLOG)")
+                    let destPrincipal = cDestino;
+                    let destDetalle = "";
+                    if (cDestino.includes('(')) {
+                        let partes = cDestino.split('(');
+                        destPrincipal = partes[0].trim();
+                        destDetalle = partes.slice(1).join('(').replace(')', '').trim();
+                    }
+
                     tds['col-ruta'] = `<td class="col-ruta align-middle ${hiddenCols['col-ruta'] ? 'd-none' : ''}">
                         <div class="d-flex flex-column align-items-center justify-content-center w-100" title="Para editar ruta usa 'Editar Viaje'">
                             ${semaforoHtml}
-                            <div class="d-flex flex-column align-items-center justify-content-center w-100 mt-1">
-                                <div class="route-text">${cOrigen}</div>
-                                <i class="fa-solid fa-caret-down my-1 text-muted" style="font-size:0.8rem;"></i>
-                                <div class="route-text">${cDestino}</div>
+                            <div class="ruta-minimalista w-100 mt-1">
+                                <div class="ruta-punto ruta-origen">
+                                    <i class="fa-regular fa-circle-dot"></i> <span>${cOrigen}</span>
+                                </div>
+                                <div class="ruta-conexion"></div>
+                                <div class="ruta-punto ruta-destino">
+                                    <i class="fa-solid fa-location-dot"></i> <span>${destPrincipal}</span>
+                                </div>
+                                ${destDetalle ? `<div class="ruta-detalle">${destDetalle}</div>` : ''}
                                 ${totDests > 1 ? `<button class="btn btn-sm text-primary p-0 mt-2 shadow-sm rounded-circle bg-white" style="width:24px; height:24px; line-height:12px;" onclick="expandirRuta('${vId}')"><i class="fa-solid fa-list" style="font-size:0.7rem;"></i></button>` : ''}
                             </div>
                             ${notaDests}
