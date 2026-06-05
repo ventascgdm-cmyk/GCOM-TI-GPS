@@ -1871,21 +1871,40 @@ function inyectarGPSenTabla() {
             // 1. ÚNICA ALERTA PERMITIDA SI AÚN NO ESTÁ EN RUTA: "SALIDA"
             if (!viajeIniciado && !v.salida_notificada && !isExternal && !isLost && !isStale) {
                 let zonaActual = limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x));
-                
-                // Escenario normal: Arrancó y superó 4 km/h
-                if (speed >= 4 && ((zonaActual && !zonaActual.includes(cOrigen)) || speed > 10)) {
-                    enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
-                    db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
-                } 
+                let sigueEnOrigen = zonaActual && cOrigen && zonaActual.includes(cOrigen);
+
                 // CASO EXTREMO: Registraron el viaje tarde y la unidad YA ESTÁ en el destino
-                else if (zonaActual && zonaActual.includes(cDestino) && speed < 4) {
+                if (zonaActual && cDestino && zonaActual.includes(cDestino) && speed < 4) {
                     enviarNotificacionPersistente(vId, safeName, 'ARRIBO', `⚠️ REGISTRO TARDÍO: La unidad ya está estacionada en el destino final.`);
-                    // Destrabamos el escudo automáticamente poniéndole una salida hace un minuto
                     db.ref('viajes_activos/'+vId).update({
                         t_salida: Date.now() - 60000, 
                         salida_notificada: true,
                         arribo_notificado: true
                     });
+                } 
+                    
+                // LÓGICA INTELIGENTE DE SALIDA
+                else if (!sigueEnOrigen) {
+                    // Verificamos si realmente salió de una geocerca que sí existe
+                    let salioDeGeocerca = cOrigen && zonaActual && !zonaActual.includes(cOrigen);
+                    
+                    // Verificamos la regla de la hora programada (1 hora de tolerancia)
+                    let esHoraPermitida = true;
+                    if (v.t_programada) {
+                        let unaHoraMs = 60 * 60 * 1000;
+                        // Si faltan MÁS de una hora para la salida, bloqueamos la alerta por velocidad
+                        if ((v.t_programada - Date.now()) > unaHoraMs) {
+                            esHoraPermitida = false;
+                        }
+                    }
+
+                    // DISPARAMOS LA ALERTA SOLO SI CUMPLE UNA DE ESTAS DOS CONDICIONES:
+                    // A) Salió físicamente de su geocerca de origen (ignoramos la hora)
+                    // B) No tiene geocerca, PERO ya estamos en la hora permitida (1 hr o menos) y va a más de 12 km/h (evita maniobras)
+                    if ((salioDeGeocerca && speed >= 4) || (!zonaActual && esHoraPermitida && speed >= 12)) {
+                        enviarNotificacionPersistente(vId, safeName, 'SALIDA', `Salió de origen: ${cOrigen || 'Base'}`);
+                        db.ref('viajes_activos/'+vId+'/salida_notificada').set(true);
+                    }
                 }
             }
 
