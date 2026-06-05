@@ -794,23 +794,25 @@ function cambiarEstatus(val, vId) {
     
     let txt = window.estatusData[val].nombre; 
 
-    // LÓGICA DE VALIDACIÓN: Estatus vs Velocidad real del GPS
     if (!isExternal) {
-        // Si intenta poner "1. Ruta" pero va a menos de 4 km/h (Está detenido)
         if (val === 's1' && speed < 4) {
-            let confirmacion = confirm(`⚠️ ALERTA DE SISTEMA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que la unidad está DETENIDA (${speed} km/h).\n\n¿Estás completamente seguro de forzar este cambio?`);
-            if (!confirmacion) return; // Si le da a cancelar, se aborta la acción
+            let confirmacion = confirm(`⚠️ ALERTA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que está DETENIDA (${speed} km/h).\n\n¿Forzar este cambio?`);
+            if (!confirmacion) return; 
         } 
-        // Si intenta poner "1.1 PARADO" pero va a más de 4 km/h (Está en movimiento)
         else if (val === 's2' && speed >= 4) {
-            let confirmacion = confirm(`⚠️ ALERTA DE SISTEMA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que la unidad está EN MOVIMIENTO (${speed} km/h).\n\n¿Estás completamente seguro de forzar este cambio?`);
-            if (!confirmacion) return; // Si le da a cancelar, se aborta la acción
+            let confirmacion = confirm(`⚠️ ALERTA:\n\nIntentas cambiar el estatus a "${txt}", pero el GPS indica que está EN MOVIMIENTO (${speed} km/h).\n\n¿Forzar este cambio?`);
+            if (!confirmacion) return; 
         }
     }
 
-    // Si pasó las validaciones o el monitorista forzó el cambio, se guarda
+    // SINCRONIZACIÓN DE ESTATUS HACIA HORARIO
+    let updates = { estatus: val };
+    if (val === 's1' && !v.t_salida) updates['t_salida'] = Date.now();
+    if (val === 's8' && !v.t_arribo) updates['t_arribo'] = Date.now();
+    if (val === 's12' && !v.t_fin) updates['t_fin'] = Date.now();
+
     registrarLog(vId, 'Cambió estatus a', txt); 
-    db.ref('viajes_activos/'+vId+'/estatus').set(val); 
+    db.ref('viajes_activos/'+vId).update(updates); 
 }
 
 function editarUbicacionManual(vId) { 
@@ -1099,11 +1101,13 @@ window.avanzarMultiDestino = function(vId) {
 };
 
 function marcarSalida(vId, cIdx) {
-    let updates = { t_salida: Date.now() }; 
+    // SE AGREGA ESTATUS s1 AUTOMÁTICO
+    let updates = { t_salida: Date.now(), estatus: 's1' }; 
     if (cIdx === 0) updates['t_salida_origen'] = Date.now();
     db.ref(`viajes_activos/${vId}`).update(updates); 
     registrarLog(vId, 'Marcó SALIDA');
 }
+
 // UTILIDADES MATEMÁTICAS DE TIEMPO
 function formatTimeDiff(mins) {
     let m = Math.abs(mins);
@@ -1138,9 +1142,17 @@ function guardarHorarioModal() {
     if(!val) return mostrarNotificacion("Selecciona una fecha válida.");
     let d = new Date(val).getTime();
     if(d) {
-        db.ref('viajes_activos/'+vId+'/'+field).set(d); 
+        let updates = {};
+        updates[field] = d;
+
+        // SINCRONIZACIÓN AUTOMÁTICA DE ESTATUS SEGÚN EL HORARIO
+        if (field === 't_salida') updates['estatus'] = 's1';       // 1. Ruta
+        else if (field === 't_arribo') updates['estatus'] = 's8';  // 4. Descargando
+        else if (field === 't_fin') updates['estatus'] = 's12';    // 8. Finalizado
+
+        db.ref('viajes_activos/'+vId).update(updates); 
         registrarLog(vId, 'Modificó horario de', titulo);
-        mostrarNotificacion("Horario actualizado."); 
+        mostrarNotificacion("Horario y estatus actualizados."); 
         try { bootstrap.Modal.getInstance(document.getElementById('modalEditHora')).hide(); } catch(e){}
     }
 }
@@ -1938,10 +1950,9 @@ function inyectarGPSenTabla() {
                             } else {
                                 let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
                                 
-                                // Definimos los estatus "seguros" donde es normal estar detenido (Cargando, Descargando, Patios, etc.)
-                                let estatusProtegidos = ['s2', 's7', 's8', 's9', 's10', 's11', 's12'];
+                                // AÑADIDO: Incluimos s4(Resguardo), s6(Incidencia) y s14(Alimentos) para NO generar alertas
+                                let estatusProtegidos = ['s2', 's4', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's14'];
                                 
-                                // Si se para más de 5 mins y NO ESTÁ en cliente -> Auto-Estatus Parado y Manda Alerta
                                 if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && !estatusProtegidos.includes(v.estatus)) {
                                     db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2' });
                                     enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
@@ -1950,10 +1961,30 @@ function inyectarGPSenTabla() {
                         } else { 
                             if (v.t_parada_inicio) db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(null);
                             
-                            // Si vuelve a moverse y estaba "PARADO", auto-cambia a "Ruta" y lanza la Alerta Verde
-                            if (v.estatus === 's2' || v.alerta_detenida) {
-                                db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1' });
-                                enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó el movimiento');
+                            // LÓGICA INTELIGENTE DE REANUDACIÓN
+                            // 1. Estatus que requieren SALIR de la geocerca obligatoriamente
+                            let requiereSalirGeocerca = ['s7', 's8', 's9', 's10', 's11'].includes(v.estatus); // Cargando, Descargando, Patios, Taller
+                            
+                            // 2. Estatus de maniobra: requieren una velocidad > 15 km/h para evitar falsos positivos
+                            let requiereVelocidadAlta = ['s4', 's6', 's14'].includes(v.estatus); // Resguardo, Incidencia, Alimentos
+                            
+                            let seMueveEnSerio = true;
+                            
+                            if (requiereSalirGeocerca && !isNotInGeofence) {
+                                seMueveEnSerio = false; // Sigue dentro del patio/cliente, no mandar alerta.
+                            }
+                            if (requiereVelocidadAlta && speed < 15) {
+                                seMueveEnSerio = false; // Está maniobrando o reacomodándose a baja velocidad, no mandar alerta.
+                            }
+                            
+                            // Si realmente se está moviendo y estaba en un estatus detenido, lo pasamos a RUTA (s1)
+                            if (seMueveEnSerio) {
+                                let estabaDetenido = ['s2', 's4', 's6', 's14'].includes(v.estatus) || v.alerta_detenida;
+                                
+                                if (estabaDetenido) {
+                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1' });
+                                    enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó su ruta principal');
+                                }
                             }
                         }
                     }
