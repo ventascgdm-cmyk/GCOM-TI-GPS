@@ -806,7 +806,7 @@ function cambiarEstatus(val, vId) {
     }
 
     // SINCRONIZACIÓN DE ESTATUS HACIA HORARIO
-    let updates = { estatus: val };
+    let updates = { estatus: val, t_cambio_estatus: Date.now() }; // <-- AQUÍ GUARDAMOS EL TIEMPO
     if (val === 's1' && !v.t_salida) updates['t_salida'] = Date.now();
     if (val === 's8' && !v.t_arribo) updates['t_arribo'] = Date.now();
     if (val === 's12' && !v.t_fin) updates['t_fin'] = Date.now();
@@ -1119,6 +1119,23 @@ function formatTimeDiff(mins) {
     if(h > 0) str.push(`${h}h`); 
     if(remM > 0 || str.length === 0) str.push(`${remM}m`);
     return str.join(' ');
+}
+
+function calcularTiempoEstatus(v) {
+    // Tomamos el momento del último cambio de estatus. Si no tiene, tomamos la fecha de salida.
+    let inicio = v.t_cambio_estatus || v.t_salida || null;
+    
+    // Si la unidad ni siquiera ha salido y no tiene estatus previo, marcamos como "Reciente"
+    if (!inicio) return "Recién creado";
+    
+    // Calculamos los minutos de diferencia entre el momento del cambio y ahorita
+    let diffMins = Math.floor((Date.now() - inicio) / 60000);
+    
+    // Si lleva menos de 1 minuto
+    if (diffMins < 1) return "Justo ahora";
+    
+    // Usamos tu función matemática existente para convertir minutos a horas/días
+    return formatTimeDiff(diffMins);
 }
 
 function abrirModalEdicionHora(vId, field, titulo, actualTs) {
@@ -1640,6 +1657,8 @@ function renderizarBitacora() {
     : lastLog;
 
                     let curEst = window.estatusData[v.estatus] || window.estatusData["s0"];
+                    let tiempoEstatusStr = calcularTiempoEstatus(v); // <- LLAMAMOS A NUESTRA NUEVA FUNCIÓN
+                    
                     let optionsHtml = `
                         <div class="dropdown w-100">
                             <button class="btn btn-sm w-100 fw-bold dropdown-toggle shadow-sm" style="background:white; color:${curEst.col}; border:1.5px solid ${curEst.col}; font-size:0.65rem; border-radius:12px; padding:2px 6px;" type="button" data-bs-toggle="dropdown" data-bs-boundary="body" aria-expanded="false">
@@ -1648,6 +1667,9 @@ function renderizarBitacora() {
                             <ul class="dropdown-menu shadow-lg border-0 rounded-3" style="font-size:0.75rem; max-height:250px; overflow-y:auto; z-index:99999 !important;">
                                 ${Object.keys(window.estatusData).map(k=>`<li><a class="dropdown-item fw-bold cp py-1" style="color:${window.estatusData[k].col};" onclick="cambiarEstatus('${k}', '${vId}')">${window.estatusData[k].nombre}</a></li>`).join('')}
                             </ul>
+                        </div>
+                        <div class="text-center mt-1" style="font-size:0.6rem; color:#64748b; font-weight:800;" title="Tiempo en este estatus">
+                            <i class="fa-solid fa-stopwatch text-primary"></i> ${tiempoEstatusStr}
                         </div>`;
 
                     let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
@@ -1954,7 +1976,7 @@ function inyectarGPSenTabla() {
                                 let estatusProtegidos = ['s2', 's4', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's14'];
                                 
                                 if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && !estatusProtegidos.includes(v.estatus)) {
-                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2' });
+                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2', t_cambio_estatus: Date.now() });
                                     enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
                                 }
                             }
@@ -1982,7 +2004,7 @@ function inyectarGPSenTabla() {
                                 let estabaDetenido = ['s2', 's4', 's6', 's14'].includes(v.estatus) || v.alerta_detenida;
                                 
                                 if (estabaDetenido) {
-                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1' });
+                                    db.ref('viajes_activos/'+vId).update({ alerta_detenida: null, estatus: 's1', t_cambio_estatus: Date.now() });
                                     enviarNotificacionPersistente(vId, safeName, 'REANUDACION', 'La unidad retomó su ruta principal');
                                 }
                             }
