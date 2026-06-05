@@ -27,6 +27,7 @@ document.addEventListener('hide.bs.dropdown', (e) => {
         UI_PAUSED = false; 
         let tr = e.target.closest('tr');
         if(tr) tr.classList.remove('dropdown-active'); 
+        renderizarBitacora(); // <-- ¡ESTA LÍNEA REPARA EL REFRESCO AUTOMÁTICO DE TODO EL SISTEMA!
     }, 300);
 });
 
@@ -1122,19 +1123,22 @@ function formatTimeDiff(mins) {
 }
 
 function calcularTiempoEstatus(v) {
-    // Tomamos el momento del último cambio de estatus. Si no tiene, tomamos la fecha de salida.
-    let inicio = v.t_cambio_estatus || v.t_salida || null;
+    // Si el viaje es nuevo o ya tiene la variable asignada
+    let inicio = v.t_cambio_estatus || null;
     
-    // Si la unidad ni siquiera ha salido y no tiene estatus previo, marcamos como "Reciente"
-    if (!inicio) return "Recién creado";
+    // Fallback inteligente: si es un registro viejo que no tiene la variable, asocia según su estatus
+    if (!inicio) {
+        if (v.estatus === 's1') inicio = v.t_salida;
+        else if (v.estatus === 's8') inicio = v.t_arribo;
+        else if (v.estatus === 's12') inicio = v.t_fin;
+    }
     
-    // Calculamos los minutos de diferencia entre el momento del cambio y ahorita
+    if (!inicio) return "En Espera";
+    
     let diffMins = Math.floor((Date.now() - inicio) / 60000);
-    
-    // Si lleva menos de 1 minuto
+    if (diffMins < 0) diffMins = 0; // Previene minutos negativos por ligeros desfases de reloj local
     if (diffMins < 1) return "Justo ahora";
     
-    // Usamos tu función matemática existente para convertir minutos a horas/días
     return formatTimeDiff(diffMins);
 }
 
