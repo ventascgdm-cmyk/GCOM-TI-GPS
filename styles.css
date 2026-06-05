@@ -151,3 +151,56 @@ body.dropdown-open .header-subcliente td { z-index: 0 !important; }
 
 /* OCULTAR EN CAPTURA */
 .oculto-en-captura { display: none !important; opacity: 0 !important; visibility: hidden !important; }
+
+/* =========================================
+   DISEÑO MINIMALISTA PARA RUTA (ORIGEN/DESTINO)
+   ========================================= */
+.ruta-minimalista {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centra los elementos horizontalmente */
+    justify-content: center;
+    font-family: inherit;
+    padding: 5px 0;
+}
+
+.ruta-punto {
+    font-weight: 600;
+    color: #1e293b; /* Gris muy oscuro, elegante */
+    font-size: 0.90rem;
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Espacio entre el ícono y el texto */
+    margin: 0;
+}
+
+.ruta-origen i { 
+    color: #3b82f6; /* Azul sutil para origen */
+    font-size: 0.75rem; 
+} 
+
+.ruta-destino i { 
+    color: #10b981; /* Verde esmeralda para destino */
+    font-size: 0.75rem; 
+}
+
+/* La pequeña línea conectora entre origen y destino */
+.ruta-conexion {
+    height: 14px;
+    width: 2px;
+    background-color: #cbd5e1; /* Gris claro */
+    margin: 2px 0;
+    border-radius: 2px;
+}
+
+/* Etiqueta para detalles extra (ej. MRL - XLOG TUMIN) */
+.ruta-detalle {
+    font-size: 0.70rem;
+    color: #64748b;
+    margin-top: 6px;
+    background-color: #f1f5f9;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
