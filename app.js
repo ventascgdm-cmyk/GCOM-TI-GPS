@@ -1902,8 +1902,12 @@ function inyectarGPSenTabla() {
                                 db.ref('viajes_activos/'+vId+'/t_parada_inicio').set(Date.now());
                             } else {
                                 let minsDetenido = (Date.now() - v.t_parada_inicio) / 60000;
+                                
+                                // Definimos los estatus "seguros" donde es normal estar detenido (Cargando, Descargando, Patios, etc.)
+                                let estatusProtegidos = ['s2', 's7', 's8', 's9', 's10', 's11', 's12'];
+                                
                                 // Si se para más de 5 mins y NO ESTÁ en cliente -> Auto-Estatus Parado y Manda Alerta
-                                if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && v.estatus !== 's2' && v.estatus !== 's12') {
+                                if (minsDetenido >= 5 && isNotInGeofence && !v.alerta_detenida && !estatusProtegidos.includes(v.estatus)) {
                                     db.ref('viajes_activos/'+vId).update({ alerta_detenida: true, estatus: 's2' });
                                     enviarNotificacionPersistente(vId, safeName, 'PARADA', 'Detenida en ruta > 5 min. Requiere justificación.');
                                 }
