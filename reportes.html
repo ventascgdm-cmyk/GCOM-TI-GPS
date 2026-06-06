@@ -40,7 +40,9 @@
             </div>
             <div class="flex-grow-1">
                 <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Cliente</label>
-                <input type="text" id="rep_cliente" class="form-control shadow-sm" placeholder="Escribe el nombre del cliente o deja vacío para TODOS">
+                <select id="rep_cliente" class="form-select shadow-sm fw-bold">
+                    <option value="TODOS">-- TODOS LOS CLIENTES --</option>
+                </select>
             </div>
             <div>
                 <button id="rep_btn_generar" class="btn btn-primary fw-bold shadow-sm px-4" onclick="generarReporte()">
@@ -85,12 +87,13 @@
                         <th>Cliente</th>
                         <th>Ruta (Origen - Destino)</th>
                         <th>Salida</th>
-                        <th>Llegada</th>
+                        <th>Arribo</th>
+                        <th>Finalización</th>
                         <th>Estatus Final</th>
                     </tr>
                 </thead>
                 <tbody id="rep_tbody">
-                    <tr><td colspan="6" class="text-center py-4 text-muted">Esperando parámetros de búsqueda...</td></tr>
+                    <tr><td colspan="7" class="text-center py-4 text-muted">Esperando parámetros de búsqueda...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -101,20 +104,38 @@
     // ==========================================
     // 1. INICIALIZACIÓN DE FIREBASE
     // ==========================================
-    const firebaseConfig = { 
-        databaseURL: "https://monitoreo-logistica-default-rtdb.firebaseio.com/" 
+    const firebaseConfig = {
+        databaseURL: "https://monitoreo-logistica-default-rtdb.firebaseio.com/"
     };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // Variable global para traducir los Códigos a Nombres
+    let diccionarioClientes = {};
+
     // ==========================================
     // 2. CONFIGURACIÓN INICIAL DE LA PÁGINA
     // ==========================================
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
+        // Fechas por defecto
         let hoy = new Date();
         let inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
         document.getElementById('rep_fecha_inicio').value = inicioMes.toISOString().split('T')[0];
         document.getElementById('rep_fecha_fin').value = hoy.toISOString().split('T')[0];
+
+        // Descargar el diccionario de clientes para el select y la tabla
+        try {
+            let snap = await db.ref('clientes').once('value');
+            if (snap.exists()) {
+                diccionarioClientes = snap.val();
+                let sel = document.getElementById('rep_cliente');
+                Object.keys(diccionarioClientes).forEach(k => {
+                    sel.innerHTML += `<option value="${k}">${diccionarioClientes[k].nombre}</option>`;
+                });
+            }
+        } catch(e) {
+            console.error("No se pudo cargar la lista de clientes", e);
+        }
     });
 
     // ==========================================
@@ -123,7 +144,7 @@
     async function generarReporte() {
         let fIniVal = document.getElementById('rep_fecha_inicio').value;
         let fFinVal = document.getElementById('rep_fecha_fin').value;
-        let clienteFiltro = document.getElementById('rep_cliente').value.toLowerCase().trim();
+        let clienteFiltro = document.getElementById('rep_cliente').value;
 
         if (!fIniVal || !fFinVal) return alert("Por favor, selecciona un rango de fechas.");
 
@@ -135,7 +156,6 @@
         btn.disabled = true;
 
         try {
-            // Se traen ambas colecciones (Los que están corriendo ahorita y los archivados)
             let snapArchivados = await db.ref('viajes_archivados').once('value');
             let snapActivos = await db.ref('viajes_activos').once('value');
             
@@ -143,21 +163,23 @@
             if(snapArchivados.exists()) Object.values(snapArchivados.val()).forEach(v => viajes.push(v));
             if(snapActivos.exists()) Object.values(snapActivos.val()).forEach(v => viajes.push(v));
 
-            // Filtro por Fechas y Cliente
+            // Filtro por Fechas y el Select de Cliente
             let filtrados = viajes.filter(v => {
-                let fechaViaje = v.t_salida || v.t_creacion || 0;
+                let fechaViaje = v.t_salida || v.t_creacion || v.t_cambio_estatus || 0;
                 let pasaFecha = fechaViaje >= fInicio && fechaViaje <= fFin;
                 
                 let pasaCliente = true;
-                if (clienteFiltro !== "") {
-                    let cNombre = (v.cliente || "").toLowerCase();
-                    pasaCliente = cNombre.includes(clienteFiltro);
+                if (clienteFiltro !== "TODOS") {
+                    pasaCliente = (v.cliente === clienteFiltro);
                 }
                 
                 return pasaFecha && pasaCliente;
             });
 
-            document.getElementById('rep_titulo_fechas').innerText = `Periodo: ${fIniVal} al ${fFinVal} | Cliente: ${clienteFiltro || 'TODOS'}`;
+            // Para el título del PDF
+            let nomSelect = clienteFiltro === "TODOS" ? "TODOS LOS CLIENTES" : (diccionarioClientes[clienteFiltro]?.nombre || "Desconocido");
+            document.getElementById('rep_titulo_fechas').innerText = `Periodo: ${fIniVal} al ${fFinVal} | Cliente: ${nomSelect}`;
+            
             renderizarDatosReporte(filtrados);
 
         } catch(e) {
@@ -183,7 +205,7 @@
             document.getElementById('rep_stat_total').innerText = "0";
             document.getElementById('rep_stat_finalizados').innerText = "0";
             document.getElementById('rep_stat_incidencias').innerText = "0";
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 fw-bold text-muted">No se encontraron viajes en este periodo.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 fw-bold text-muted">No se encontraron viajes en este periodo.</td></tr>';
             return;
         }
 
@@ -203,8 +225,17 @@
             }
             if (tuvoIncidencia) conIncidencias++;
 
-            let fSalida = v.t_salida ? new Date(v.t_salida).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : 'Pendiente';
-            let fLlegada = v.t_fin ? new Date(v.t_fin).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : (v.t_arribo ? 'En Destino' : 'En Ruta');
+            // Mapeo seguro del nombre de la unidad y del cliente
+            let nomUnidad = v.unidadN || v.unidadFallback || v.unidad_nombre || 'N/A';
+            let nomCliente = diccionarioClientes[v.cliente] ? diccionarioClientes[v.cliente].nombre : 'S/C';
+
+            // Extracción de ruta para multi-destinos
+            let rutaDestino = Array.isArray(v.destinos) ? v.destinos.join(' / ') : (v.destino || 'Destino');
+
+            // Separación de los 3 Horarios con formato limpio
+            let fSalida = v.t_salida ? new Date(v.t_salida).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : '--:--';
+            let fArribo = v.t_arribo ? new Date(v.t_arribo).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : '--:--';
+            let fFin = v.t_fin ? new Date(v.t_fin).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : '--:--';
 
             // Diccionario básico de estatus para colores
             let colorEstatus = "#6c757d"; let nomEstatus = "Desconocido";
@@ -216,15 +247,16 @@
 
             let tr = `
                 <tr>
-                    <td class="fw-bold text-dark text-center">${v.unidad_nombre || 'N/A'}</td>
-                    <td class="text-center">${v.cliente || 'S/C'}</td>
+                    <td class="fw-bold text-dark text-center">${nomUnidad}</td>
+                    <td class="text-center fw-bold text-secondary">${nomCliente}</td>
                     <td class="text-center">
                         <span class="text-primary fw-bold">${v.origen || 'Origen'}</span> 
                         <i class="fa-solid fa-arrow-right mx-1 text-muted" style="font-size:0.6rem;"></i> 
-                        <span class="text-success fw-bold">${v.destino || 'Destino'}</span>
+                        <span class="text-success fw-bold">${rutaDestino}</span>
                     </td>
-                    <td class="text-center">${fSalida}</td>
-                    <td class="text-center">${fLlegada}</td>
+                    <td class="text-center fw-bold text-primary">${fSalida}</td>
+                    <td class="text-center fw-bold text-warning" style="color: #d97706 !important;">${fArribo}</td>
+                    <td class="text-center fw-bold text-success">${fFin}</td>
                     <td class="text-center">
                         <span class="badge w-100 py-2 shadow-sm" style="background-color: ${colorEstatus}; border: 1px solid ${colorEstatus}; color: white;">
                             ${nomEstatus}
