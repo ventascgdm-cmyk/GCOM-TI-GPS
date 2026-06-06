@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes Estadísticos - GCOM TI</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card-stat { border-radius: 15px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid py-4" style="max-width: 1200px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark mb-0"><i class="fa-solid fa-chart-pie text-primary"></i> Módulo de Reportes Históricos</h2>
+        <button class="btn btn-danger fw-bold shadow-sm px-4" onclick="exportarReportePDF()">
+            <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+        </button>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4 rounded-4" id="zona_filtros">
+        <div class="card-body d-flex gap-3 align-items-end flex-wrap bg-white rounded-4">
+            <div>
+                <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Fecha Inicio</label>
+                <input type="date" id="rep_fecha_inicio" class="form-control shadow-sm">
+            </div>
+            <div>
+                <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Fecha Fin</label>
+                <input type="date" id="rep_fecha_fin" class="form-control shadow-sm">
+            </div>
+            <div class="flex-grow-1">
+                <label class="form-label fw-bold text-muted mb-1" style="font-size: 0.8rem;">Cliente</label>
+                <input type="text" id="rep_cliente" class="form-control shadow-sm" placeholder="Escribe el nombre del cliente o deja vacío para TODOS">
+            </div>
+            <div>
+                <button id="rep_btn_generar" class="btn btn-primary fw-bold shadow-sm px-4" onclick="generarReporte()">
+                    <i class="fa-solid fa-bolt"></i> Generar Datos
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="documento_reporte" class="bg-white p-4 rounded-4 shadow-sm border">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold text-dark mb-0">Informe Operativo de Viajes</h3>
+            <p class="text-muted" id="rep_titulo_fechas">Seleccione un rango de fechas para visualizar</p>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="p-3 bg-primary bg-opacity-10 rounded-4 border border-primary border-opacity-25 text-center card-stat">
+                    <h2 id="rep_stat_total" class="fw-bold text-primary mb-0">0</h2>
+                    <span class="text-muted fw-bold" style="font-size:0.8rem;">TOTAL VIAJES</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-success bg-opacity-10 rounded-4 border border-success border-opacity-25 text-center card-stat">
+                    <h2 id="rep_stat_finalizados" class="fw-bold text-success mb-0">0</h2>
+                    <span class="text-muted fw-bold" style="font-size:0.8rem;">FINALIZADOS</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 bg-danger bg-opacity-10 rounded-4 border border-danger border-opacity-25 text-center card-stat">
+                    <h2 id="rep_stat_incidencias" class="fw-bold text-danger mb-0">0</h2>
+                    <span class="text-muted fw-bold" style="font-size:0.8rem;">CON INCIDENCIAS</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered align-middle" style="font-size: 0.8rem;">
+                <thead class="table-light text-secondary text-center">
+                    <tr>
+                        <th>Unidad</th>
+                        <th>Cliente</th>
+                        <th>Ruta (Origen - Destino)</th>
+                        <th>Salida</th>
+                        <th>Llegada</th>
+                        <th>Estatus Final</th>
+                    </tr>
+                </thead>
+                <tbody id="rep_tbody">
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Esperando parámetros de búsqueda...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. INICIALIZACIÓN DE FIREBASE
+    // ==========================================
+    // !!! IMPORTANTE: REEMPLAZA ESTO CON LA CONFIGURACIÓN QUE TIENES EN TU INDEX.HTML !!!
+    const firebaseConfig = {
+        apiKey: "TU_API_KEY",
+        authDomain: "TU_AUTH_DOMAIN",
+        databaseURL: "TU_DATABASE_URL",
+        projectId: "TU_PROJECT_ID",
+        storageBucket: "TU_STORAGE_BUCKET",
+        messagingSenderId: "TU_SENDER_ID",
+        appId: "TU_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ==========================================
+    // 2. CONFIGURACIÓN INICIAL DE LA PÁGINA
+    // ==========================================
+    document.addEventListener("DOMContentLoaded", () => {
+        let hoy = new Date();
+        let inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        document.getElementById('rep_fecha_inicio').value = inicioMes.toISOString().split('T')[0];
+        document.getElementById('rep_fecha_fin').value = hoy.toISOString().split('T')[0];
+    });
+
+    // ==========================================
+    // 3. LÓGICA DE EXTRACCIÓN Y FILTRADO
+    // ==========================================
+    async function generarReporte() {
+        let fIniVal = document.getElementById('rep_fecha_inicio').value;
+        let fFinVal = document.getElementById('rep_fecha_fin').value;
+        let clienteFiltro = document.getElementById('rep_cliente').value.toLowerCase().trim();
+
+        if (!fIniVal || !fFinVal) return alert("Por favor, selecciona un rango de fechas.");
+
+        let fInicio = new Date(fIniVal + "T00:00:00").getTime();
+        let fFin = new Date(fFinVal + "T23:59:59").getTime();
+
+        let btn = document.getElementById('rep_btn_generar');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Consultando DB...';
+        btn.disabled = true;
+
+        try {
+            // Se traen ambas colecciones (Los que están corriendo ahorita y los archivados)
+            let snapArchivados = await db.ref('viajes_archivados').once('value');
+            let snapActivos = await db.ref('viajes_activos').once('value');
+            
+            let viajes = [];
+            if(snapArchivados.exists()) Object.values(snapArchivados.val()).forEach(v => viajes.push(v));
+            if(snapActivos.exists()) Object.values(snapActivos.val()).forEach(v => viajes.push(v));
+
+            // Filtro por Fechas y Cliente
+            let filtrados = viajes.filter(v => {
+                let fechaViaje = v.t_salida || v.t_creacion || 0;
+                let pasaFecha = fechaViaje >= fInicio && fechaViaje <= fFin;
+                
+                let pasaCliente = true;
+                if (clienteFiltro !== "") {
+                    let cNombre = (v.cliente || "").toLowerCase();
+                    pasaCliente = cNombre.includes(clienteFiltro);
+                }
+                
+                return pasaFecha && pasaCliente;
+            });
+
+            document.getElementById('rep_titulo_fechas').innerText = `Periodo: ${fIniVal} al ${fFinVal} | Cliente: ${clienteFiltro || 'TODOS'}`;
+            renderizarDatosReporte(filtrados);
+
+        } catch(e) {
+            console.error(e);
+            alert("Hubo un error al descargar el historial de Firebase.");
+        }
+        
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Generar Datos';
+        btn.disabled = false;
+    }
+
+    // ==========================================
+    // 4. RENDERIZADO EN TABLA
+    // ==========================================
+    function renderizarDatosReporte(viajes) {
+        let total = viajes.length;
+        let finalizados = 0;
+        let conIncidencias = 0;
+        let tbody = document.getElementById('rep_tbody');
+        tbody.innerHTML = '';
+
+        if(total === 0) {
+            document.getElementById('rep_stat_total').innerText = "0";
+            document.getElementById('rep_stat_finalizados').innerText = "0";
+            document.getElementById('rep_stat_incidencias').innerText = "0";
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 fw-bold text-muted">No se encontraron viajes en este periodo.</td></tr>';
+            return;
+        }
+
+        // Ordenamos del más reciente al más antiguo
+        viajes.sort((a,b) => (b.t_salida || 0) - (a.t_salida || 0));
+
+        viajes.forEach(v => {
+            if (v.estatus === 's12') finalizados++;
+            
+            let tuvoIncidencia = false;
+            if (v.log) {
+                tuvoIncidencia = Object.values(v.log).some(l => 
+                    (l.accion && l.accion.toLowerCase().includes('incidencia')) || 
+                    (l.accion && l.accion.toLowerCase().includes('alerta')) ||
+                    (l.accion && l.accion.toLowerCase().includes('parada'))
+                );
+            }
+            if (tuvoIncidencia) conIncidencias++;
+
+            let fSalida = v.t_salida ? new Date(v.t_salida).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : 'Pendiente';
+            let fLlegada = v.t_fin ? new Date(v.t_fin).toLocaleString('es-MX', {dateStyle:'short', timeStyle:'short'}) : (v.t_arribo ? 'En Destino' : 'En Ruta');
+
+            // Diccionario básico de estatus para colores
+            let colorEstatus = "#6c757d"; let nomEstatus = "Desconocido";
+            if(v.estatus === 's12') { colorEstatus = "#198754"; nomEstatus = "Finalizado"; }
+            else if(v.estatus === 's1') { colorEstatus = "#0d6efd"; nomEstatus = "En Ruta"; }
+            else if(v.estatus === 's2') { colorEstatus = "#dc3545"; nomEstatus = "Parada/Alerta"; }
+            else if(v.estatus === 's8') { colorEstatus = "#fd7e14"; nomEstatus = "Descargando"; }
+            else { colorEstatus = "#0dcaf0"; nomEstatus = "Activo"; }
+
+            let tr = `
+                <tr>
+                    <td class="fw-bold text-dark text-center">${v.unidad_nombre || 'N/A'}</td>
+                    <td class="text-center">${v.cliente || 'S/C'}</td>
+                    <td class="text-center">
+                        <span class="text-primary fw-bold">${v.origen || 'Origen'}</span> 
+                        <i class="fa-solid fa-arrow-right mx-1 text-muted" style="font-size:0.6rem;"></i> 
+                        <span class="text-success fw-bold">${v.destino || 'Destino'}</span>
+                    </td>
+                    <td class="text-center">${fSalida}</td>
+                    <td class="text-center">${fLlegada}</td>
+                    <td class="text-center">
+                        <span class="badge w-100 py-2 shadow-sm" style="background-color: ${colorEstatus}; border: 1px solid ${colorEstatus}; color: white;">
+                            ${nomEstatus}
+                        </span>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += tr;
+        });
+
+        document.getElementById('rep_stat_total').innerText = total;
+        document.getElementById('rep_stat_finalizados').innerText = finalizados;
+        document.getElementById('rep_stat_incidencias').innerText = conIncidencias;
+    }
+
+    // ==========================================
+    // 5. EXPORTACIÓN A PDF
+    // ==========================================
+    function exportarReportePDF() {
+        let element = document.getElementById('documento_reporte');
+        let opt = {
+          margin:       0.5,
+          filename:     `Reporte_Operativo_${Date.now()}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true },
+          jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+        };
+        html2pdf().set(opt).from(element).save();
+    }
+</script>
+</body>
+</html>
