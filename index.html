@@ -58,10 +58,24 @@
             </div>
         </div>
         
-        <div class="search-bar-container flex-grow-1 px-4" style="max-width: 350px;">
-            <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-secondary" style="background: white;">
+        <div class="search-bar-container flex-grow-1 px-4 d-flex flex-column justify-content-center" style="max-width: 450px;">
+            <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-secondary mb-2" style="background: white;">
                 <span class="input-group-text bg-white border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
-                <input type="text" id="buscador" class="form-control border-0 bg-white shadow-none py-2" style="font-size: 0.80rem; font-weight: bold;" placeholder="Buscar unidad, operador..." onkeyup="filtrarTablaInteligente()">
+                <input type="text" id="buscador" class="form-control border-0 bg-white shadow-none py-1" style="font-size: 0.80rem; font-weight: bold;" placeholder="Buscar unidad, operador..." onkeyup="filtrarTablaInteligente()">
+            </div>
+            <div class="btn-group shadow-sm w-100" role="group" aria-label="Filtros de Vista">
+                <button id="btn_vista_TODOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('TODOS')">
+                    TODOS <span id="badge_TODOS" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
+                </button>
+                <button id="btn_vista_PENDIENTES" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('PENDIENTES')">
+                    PENDIENTES <span id="badge_PENDIENTES" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
+                </button>
+                <button id="btn_vista_ACTIVOS" type="button" class="btn btn-sm btn-primary btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('ACTIVOS')">
+                    EN RUTA <span id="badge_ACTIVOS" class="badge bg-light text-primary ms-1 rounded-pill shadow-sm">0</span>
+                </button>
+                <button id="btn_vista_FINALIZADOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('FINALIZADOS')">
+                    FINALIZADOS <span id="badge_FINALIZADOS" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
+                </button>
             </div>
         </div>
         <div class="btn-group shadow-sm ms-3" role="group" aria-label="Filtros de Vista">
