@@ -57,42 +57,28 @@
                 </div>
             </div>
         </div>
-        
-        <div class="search-bar-container flex-grow-1 px-4 d-flex flex-column justify-content-center" style="max-width: 450px;">
+
+        <div class="search-bar-container flex-grow-1 px-4 d-flex flex-column justify-content-center" style="max-width: 550px;">
             <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-secondary mb-2" style="background: white;">
                 <span class="input-group-text bg-white border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
                 <input type="text" id="buscador" class="form-control border-0 bg-white shadow-none py-1" style="font-size: 0.80rem; font-weight: bold;" placeholder="Buscar unidad, operador..." onkeyup="filtrarTablaInteligente()">
             </div>
             <div class="btn-group shadow-sm w-100" role="group" aria-label="Filtros de Vista">
                 <button id="btn_vista_TODOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('TODOS')">
-                    TODOS <span id="badge_TODOS" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
+                    <i class="fa-solid fa-list-ul"></i> TODOS <span id="badge_TODOS" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
                 </button>
                 <button id="btn_vista_PENDIENTES" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('PENDIENTES')">
-                    PENDIENTES <span id="badge_PENDIENTES" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
+                    <i class="fa-regular fa-clock"></i> PENDIENTES <span id="badge_PENDIENTES" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
                 </button>
                 <button id="btn_vista_ACTIVOS" type="button" class="btn btn-sm btn-primary btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('ACTIVOS')">
-                    EN RUTA <span id="badge_ACTIVOS" class="badge bg-light text-primary ms-1 rounded-pill shadow-sm">0</span>
+                    <i class="fa-solid fa-truck-fast"></i> EN RUTA <span id="badge_ACTIVOS" class="badge bg-light text-primary ms-1 rounded-pill shadow-sm">0</span>
                 </button>
                 <button id="btn_vista_FINALIZADOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold py-1" style="font-size: 0.65rem;" onclick="cambiarVistaViajes('FINALIZADOS')">
-                    FINALIZADOS <span id="badge_FINALIZADOS" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
+                    <i class="fa-solid fa-flag-checkered"></i> FINALIZADOS <span id="badge_FINALIZADOS" class="badge bg-secondary ms-1 rounded-pill shadow-sm">0</span>
                 </button>
             </div>
         </div>
-        <div class="btn-group shadow-sm ms-3" role="group" aria-label="Filtros de Vista">
-            <button id="btn_vista_TODOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('TODOS')">
-                <i class="fa-solid fa-list-ul"></i> Todos
-            </button>
-            <button id="btn_vista_PENDIENTES" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('PENDIENTES')">
-                <i class="fa-regular fa-clock"></i> Pendientes
-            </button>
-            <button id="btn_vista_ACTIVOS" type="button" class="btn btn-sm btn-primary btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('ACTIVOS')">
-                <i class="fa-solid fa-truck-fast"></i> En Ruta
-            </button>
-            <button id="btn_vista_FINALIZADOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('FINALIZADOS')">
-                <i class="fa-solid fa-flag-checkered"></i> Finalizados
-            </button>
-        </div>
-
+        
         <div class="btn-action-group d-flex align-items-center">
             <div class="dropdown d-inline-block me-2">
                 <button class="btn btn-light fw-bold dropdown-toggle border shadow-sm rounded-pill px-4 py-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
