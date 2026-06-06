@@ -35,6 +35,63 @@ window.cambiarVistaViajes = function(vista) {
     // Llamamos a la tabla para que se actualice al instante
     filtrarTablaInteligente();
 };
+// CONTROL DE VISTAS DE LA BITÁCORA Y BADGES
+let vistaActualViajes = 'ACTIVOS'; // Inicia mostrando solo En Ruta
+
+window.cambiarVistaViajes = function(vista) {
+    vistaActualViajes = vista;
+    
+    // Regresar todos los botones a su estado inactivo (gris/blanco)
+    document.querySelectorAll('.btn-filtro-vista').forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary', 'bg-white');
+        let badge = btn.querySelector('.badge');
+        if (badge) {
+            badge.classList.remove('bg-light', 'text-primary');
+            badge.classList.add('bg-secondary', 'text-white');
+        }
+    });
+    
+    // Encender el botón seleccionado (azul/blanco)
+    let btnActivo = document.getElementById('btn_vista_' + vista);
+    if(btnActivo) {
+        btnActivo.classList.remove('btn-outline-primary', 'bg-white');
+        btnActivo.classList.add('btn-primary');
+        let badge = btnActivo.querySelector('.badge');
+        if (badge) {
+            badge.classList.remove('bg-secondary', 'text-white');
+            badge.classList.add('bg-light', 'text-primary');
+        }
+    }
+    
+    filtrarTablaInteligente();
+};
+
+function actualizarContadoresVistas() {
+    let cTodos = 0, cPendientes = 0, cActivos = 0, cFinalizados = 0;
+    
+    Object.values(viajesActivos).forEach(v => {
+        if(typeof v !== 'object' || !v) return;
+        cTodos++;
+        
+        let yaSalio = !!v.t_salida;
+        let yaFinalizo = v.estatus === 's12';
+
+        if (yaFinalizo) {
+            cFinalizados++;
+        } else if (yaSalio) {
+            cActivos++;
+        } else {
+            cPendientes++;
+        }
+    });
+
+    // Inyectamos los números calculados directo en el HTML
+    if(document.getElementById('badge_TODOS')) document.getElementById('badge_TODOS').innerText = cTodos;
+    if(document.getElementById('badge_PENDIENTES')) document.getElementById('badge_PENDIENTES').innerText = cPendientes;
+    if(document.getElementById('badge_ACTIVOS')) document.getElementById('badge_ACTIVOS').innerText = cActivos;
+    if(document.getElementById('badge_FINALIZADOS')) document.getElementById('badge_FINALIZADOS').innerText = cFinalizados;
+}
 
 document.addEventListener('show.bs.dropdown', (e) => { 
     UI_PAUSED = true; 
@@ -1915,6 +1972,8 @@ function renderizarBitacora() {
     }
     
     tbody.innerHTML = html || `<tr><td colspan="${colOrder.length}" class="p-5 text-muted fs-6 text-center"><i class="fa-solid fa-folder-open mb-2 fs-3 text-primary"></i><br>Aún no hay viajes activos en la bitácora.</td></tr>`;
+    // ACTUALIZA LOS BADGES
+    actualizarContadoresVistas();
     filtrarTablaInteligente();
     if (motorArrancado) inyectarGPSenTabla();
 }
@@ -1931,25 +1990,21 @@ function filtrarTablaInteligente() {
             let cumpleTexto = (r.getAttribute("data-search") || "").includes(t);
             let cumpleVista = true;
 
-            // LÓGICA DE LAS PESTAÑAS
+            // LÓGICA DE LAS PESTAÑAS (TABS)
             if (v && vistaActualViajes !== 'TODOS') {
                 let yaSalio = !!v.t_salida;
-                let yaFinalizo = v.estatus === 's12'; // 's12' es el estatus de Finalizado
+                let yaFinalizo = v.estatus === 's12'; // s12 es "Finalizado"
 
-                if (vistaActualViajes === 'ACTIVOS') {
-                    cumpleVista = yaSalio && !yaFinalizo; // Ya salió, pero no ha terminado
-                } else if (vistaActualViajes === 'PENDIENTES') {
-                    cumpleVista = !yaSalio; // Aún no sale
-                } else if (vistaActualViajes === 'FINALIZADOS') {
-                    cumpleVista = yaFinalizo; // Ya está en s12
-                }
+                if (vistaActualViajes === 'ACTIVOS') cumpleVista = (yaSalio && !yaFinalizo);
+                else if (vistaActualViajes === 'PENDIENTES') cumpleVista = (!yaSalio);
+                else if (vistaActualViajes === 'FINALIZADOS') cumpleVista = (yaFinalizo);
             }
 
             r.style.display = (cumpleTexto && cumpleVista) ? "" : "none"; 
         } 
     });
 
-    // Esta parte oculta cabeceras vacías automáticamente
+    // Ocultar cabeceras vacías (Clientes / Subclientes) si no hay viajes en esta pestaña
     let currentSubclientVisible = false; let currentClientVisible = false;
     for (let i = rows.length - 1; i >= 0; i--) {
         let r = rows[i];
