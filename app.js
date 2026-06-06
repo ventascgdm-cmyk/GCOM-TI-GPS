@@ -662,7 +662,18 @@ function confirmarNotificacion(id, isSeguridad) {
     }
     
     let vId = n.vId; 
+
+    // PROTECCIÓN CONTRA VIAJES FANTASMA
+    if (!viajesActivos[vId]) {
+        db.ref('notificaciones_pendientes/' + id).remove(); 
+        mostrarNotificacion("Este viaje ya fue archivado. Alerta eliminada."); 
+        if(isSeguridad) setTimeout(abrirHubSeguridad, 100); 
+        else setTimeout(abrirHubLogistico, 100);
+        return;
+    }
+    
     let defaultAct = "";
+    // ... (el resto de tu código sigue exactamente igual a partir de aquí)
     
     if (n.tipo === "SALIDA") defaultAct = 'Confirmó SALIDA';
     else if (n.tipo === "ARRIBO") defaultAct = 'Confirmó ARRIBO';
@@ -697,6 +708,15 @@ function rechazarNotificacion(id, isSeguridad) {
     
     let inputEl = document.getElementById('nota_hub_' + id); 
     let nota = inputEl ? inputEl.value.trim() : ""; 
+
+    // PROTECCIÓN CONTRA VIAJES FANTASMA
+    if (!viajesActivos[n.vId]) {
+        db.ref('notificaciones_pendientes/' + id).remove(); 
+        mostrarNotificacion("Este viaje ya fue archivado. Alerta eliminada."); 
+        if(isSeguridad) setTimeout(abrirHubSeguridad, 100); 
+        else setTimeout(abrirHubLogistico, 100);
+        return;
+    }
     
     let finalAct = nota ? `🗣️ ${nota}` : `Canceló Alerta`;
     let finalDet = nota ? `Descartó alerta de ${n.tipo}` : `Falsa alarma de ${n.tipo}`;
@@ -844,18 +864,42 @@ function registrarLog(viajeId, accion, detalle = "") {
 function cerrarSesion() { localStorage.clear(); location.reload(); }
 
 function finalizarViaje(vId, nombre) {
-    if(confirm(`¿Estás seguro de archivar el viaje de la unidad ${nombre}?`)) {
-        db.ref('viajes_activos/' + vId).once('value').then(snap => {
-            let data = snap.val();
-            if(data) {
-                data.fecha_archivado = Date.now(); 
-                db.ref('viajes_archivados/' + vId).set(data).then(() => {
-                    db.ref('viajes_activos/' + vId).remove();
-                    mostrarNotificacion(`Viaje de ${nombre} archivado exitosamente.`);
-                });
-            }
-        }).catch(err => alert("Error al archivar: " + err.message));
+    // 1. Buscar si hay alertas pendientes en los HUBs para este viaje
+    let alertasPendientesDelViaje = [];
+    
+    Object.values(alertasSeguridad).forEach(alerta => {
+        if (alerta.vId === vId) alertasPendientesDelViaje.push(alerta);
+    });
+    Object.values(alertasLogistica).forEach(alerta => {
+        if (alerta.vId === vId) alertasPendientesDelViaje.push(alerta);
+    });
+
+    // 2. Si hay alertas sin responder, lanzamos la advertencia
+    if (alertasPendientesDelViaje.length > 0) {
+        let msj = `⚠️ ATENCIÓN:\n\nLa unidad ${nombre} tiene ${alertasPendientesDelViaje.length} alerta(s) SIN RESPONDER en los HUBs.\n\nSi decides archivar el viaje ahora, estas alertas se borrarán y se marcarán como "IGNORADAS" en el historial.\n\n¿Estás seguro de continuar y archivar el viaje?`;
+        if (!confirm(msj)) return; // Se cancela el archivado
+        
+        // 3. Procesar las alertas como ignoradas en el log del viaje
+        alertasPendientesDelViaje.forEach(alerta => {
+            registrarLog(vId, "Alerta Ignorada (Archivado)", `Alerta de ${alerta.tipo} sin responder`);
+            db.ref('notificaciones_pendientes/' + alerta.id).remove();
+        });
+    } else {
+        // Confirmación normal si todo está limpio
+        if (!confirm(`¿Estás seguro de archivar el viaje de la unidad ${nombre}?`)) return;
     }
+
+    // 4. Proceder con el archivado normal
+    db.ref('viajes_activos/' + vId).once('value').then(snap => {
+        let data = snap.val();
+        if(data) {
+            data.fecha_archivado = Date.now(); 
+            db.ref('viajes_archivados/' + vId).set(data).then(() => {
+                db.ref('viajes_activos/' + vId).remove();
+                mostrarNotificacion(`Viaje de ${nombre} archivado exitosamente.`);
+            });
+        }
+    }).catch(err => alert("Error al archivar: " + err.message));
 }
 
 function abrirModalLog(uId, uName) { 
