@@ -14,6 +14,27 @@ function mostrarNotificacion(msg) {
 
 // --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---
 let UI_PAUSED = false;
+// CONTROL DE VISTAS DE LA BITÁCORA
+let vistaActualViajes = 'ACTIVOS'; // Opciones: 'TODOS', 'ACTIVOS', 'PENDIENTES', 'FINALIZADOS'
+
+window.cambiarVistaViajes = function(vista) {
+    vistaActualViajes = vista;
+    
+    // Cambiamos el color de los botones para saber cuál está activo
+    document.querySelectorAll('.btn-filtro-vista').forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary', 'bg-white');
+    });
+    
+    let btnActivo = document.getElementById('btn_vista_' + vista);
+    if(btnActivo) {
+        btnActivo.classList.remove('btn-outline-primary', 'bg-white');
+        btnActivo.classList.add('btn-primary');
+    }
+    
+    // Llamamos a la tabla para que se actualice al instante
+    filtrarTablaInteligente();
+};
 
 document.addEventListener('show.bs.dropdown', (e) => { 
     UI_PAUSED = true; 
@@ -1899,9 +1920,36 @@ function renderizarBitacora() {
 }
 
 function filtrarTablaInteligente() {
-    let t = document.getElementById("buscador").value.toLowerCase(); 
+    let t = document.getElementById("buscador") ? document.getElementById("buscador").value.toLowerCase() : ""; 
     let rows = Array.from(document.querySelectorAll("#units-body tr"));
-    rows.forEach(r => { if(r.classList.contains("data-row")) r.style.display = (r.getAttribute("data-search") || "").includes(t) ? "" : "none"; });
+
+    rows.forEach(r => { 
+        if(r.classList.contains("data-row")) {
+            let vId = r.id.replace('row_', '');
+            let v = viajesActivos[vId];
+            
+            let cumpleTexto = (r.getAttribute("data-search") || "").includes(t);
+            let cumpleVista = true;
+
+            // LÓGICA DE LAS PESTAÑAS
+            if (v && vistaActualViajes !== 'TODOS') {
+                let yaSalio = !!v.t_salida;
+                let yaFinalizo = v.estatus === 's12'; // 's12' es el estatus de Finalizado
+
+                if (vistaActualViajes === 'ACTIVOS') {
+                    cumpleVista = yaSalio && !yaFinalizo; // Ya salió, pero no ha terminado
+                } else if (vistaActualViajes === 'PENDIENTES') {
+                    cumpleVista = !yaSalio; // Aún no sale
+                } else if (vistaActualViajes === 'FINALIZADOS') {
+                    cumpleVista = yaFinalizo; // Ya está en s12
+                }
+            }
+
+            r.style.display = (cumpleTexto && cumpleVista) ? "" : "none"; 
+        } 
+    });
+
+    // Esta parte oculta cabeceras vacías automáticamente
     let currentSubclientVisible = false; let currentClientVisible = false;
     for (let i = rows.length - 1; i >= 0; i--) {
         let r = rows[i];
