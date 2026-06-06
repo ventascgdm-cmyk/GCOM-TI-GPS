@@ -15,13 +15,13 @@ function mostrarNotificacion(msg) {
 // --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---
 let UI_PAUSED = false;
 
-// CONTROL DE VISTAS DE LA BITÁCORA Y BADGES
-let vistaActualViajes = 'ACTIVOS'; // Inicia mostrando solo En Ruta
+// --- CONTROL DE VISTAS DE LA BITÁCORA Y BADGES ---
+let vistaActualViajes = 'ACTIVOS'; 
 
 window.cambiarVistaViajes = function(vista) {
     vistaActualViajes = vista;
     
-    // Regresar todos los botones a su estado inactivo (gris/blanco)
+    // Regresar todos los botones a su estado inactivo
     document.querySelectorAll('.btn-filtro-vista').forEach(btn => {
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-outline-primary', 'bg-white');
@@ -32,7 +32,7 @@ window.cambiarVistaViajes = function(vista) {
         }
     });
     
-    // Encender el botón seleccionado (azul/blanco)
+    // Encender el botón seleccionado
     let btnActivo = document.getElementById('btn_vista_' + vista);
     if(btnActivo) {
         btnActivo.classList.remove('btn-outline-primary', 'bg-white');
@@ -47,7 +47,12 @@ window.cambiarVistaViajes = function(vista) {
     filtrarTablaInteligente();
 };
 
-function actualizarContadoresVistas() {  
+function actualizarContadoresVistas() {
+    let cTodos = 0, cPendientes = 0, cActivos = 0, cFinalizados = 0;
+    
+    // Protección: Evita errores si Firebase aún no ha descargado los datos
+    if (typeof viajesActivos === 'undefined' || !viajesActivos) return;
+
     Object.values(viajesActivos).forEach(v => {
         if(typeof v !== 'object' || !v) return;
         cTodos++;
@@ -64,12 +69,15 @@ function actualizarContadoresVistas() {
         }
     });
 
-    // Inyectamos los números calculados directo en el HTML
+    // Inyección de los números en el HTML
     if(document.getElementById('badge_TODOS')) document.getElementById('badge_TODOS').innerText = cTodos;
     if(document.getElementById('badge_PENDIENTES')) document.getElementById('badge_PENDIENTES').innerText = cPendientes;
     if(document.getElementById('badge_ACTIVOS')) document.getElementById('badge_ACTIVOS').innerText = cActivos;
     if(document.getElementById('badge_FINALIZADOS')) document.getElementById('badge_FINALIZADOS').innerText = cFinalizados;
 }
+
+// MAGIA: Este temporizador fuerza a que los números se lean de la base de datos y se actualicen solos cada 1 segundo.
+setInterval(actualizarContadoresVistas, 1000);
 
 document.addEventListener('show.bs.dropdown', (e) => { 
     UI_PAUSED = true; 
