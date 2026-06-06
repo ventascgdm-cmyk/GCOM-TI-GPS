@@ -14,27 +14,7 @@ function mostrarNotificacion(msg) {
 
 // --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---
 let UI_PAUSED = false;
-// CONTROL DE VISTAS DE LA BITÁCORA
-let vistaActualViajes = 'ACTIVOS'; // Opciones: 'TODOS', 'ACTIVOS', 'PENDIENTES', 'FINALIZADOS'
 
-window.cambiarVistaViajes = function(vista) {
-    vistaActualViajes = vista;
-    
-    // Cambiamos el color de los botones para saber cuál está activo
-    document.querySelectorAll('.btn-filtro-vista').forEach(btn => {
-        btn.classList.remove('btn-primary');
-        btn.classList.add('btn-outline-primary', 'bg-white');
-    });
-    
-    let btnActivo = document.getElementById('btn_vista_' + vista);
-    if(btnActivo) {
-        btnActivo.classList.remove('btn-outline-primary', 'bg-white');
-        btnActivo.classList.add('btn-primary');
-    }
-    
-    // Llamamos a la tabla para que se actualice al instante
-    filtrarTablaInteligente();
-};
 // CONTROL DE VISTAS DE LA BITÁCORA Y BADGES
 let vistaActualViajes = 'ACTIVOS'; // Inicia mostrando solo En Ruta
 
@@ -67,9 +47,7 @@ window.cambiarVistaViajes = function(vista) {
     filtrarTablaInteligente();
 };
 
-function actualizarContadoresVistas() {
-    let cTodos = 0, cPendientes = 0, cActivos = 0, cFinalizados = 0;
-    
+function actualizarContadoresVistas() {  
     Object.values(viajesActivos).forEach(v => {
         if(typeof v !== 'object' || !v) return;
         cTodos++;
