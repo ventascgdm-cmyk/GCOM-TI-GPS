@@ -62,21 +62,21 @@
             <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border border-secondary" style="background: white;">
                 <span class="input-group-text bg-white border-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
                 <input type="text" id="buscador" class="form-control border-0 bg-white shadow-none py-2" style="font-size: 0.80rem; font-weight: bold;" placeholder="Buscar unidad, operador..." onkeyup="filtrarTablaInteligente()">
-                <div class="btn-group shadow-sm ms-3" role="group" aria-label="Filtros de Vista">
-    <button id="btn_vista_TODOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('TODOS')">
-        <i class="fa-solid fa-list-ul"></i> Todos
-    </button>
-    <button id="btn_vista_PENDIENTES" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('PENDIENTES')">
-        <i class="fa-regular fa-clock"></i> Pendientes
-    </button>
-    <button id="btn_vista_ACTIVOS" type="button" class="btn btn-sm btn-primary btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('ACTIVOS')">
-        <i class="fa-solid fa-truck-fast"></i> En Ruta
-    </button>
-    <button id="btn_vista_FINALIZADOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('FINALIZADOS')">
-        <i class="fa-solid fa-flag-checkered"></i> Finalizados
-    </button>
-</div>
             </div>
+        </div>
+        <div class="btn-group shadow-sm ms-3" role="group" aria-label="Filtros de Vista">
+            <button id="btn_vista_TODOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('TODOS')">
+                <i class="fa-solid fa-list-ul"></i> Todos
+            </button>
+            <button id="btn_vista_PENDIENTES" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('PENDIENTES')">
+                <i class="fa-regular fa-clock"></i> Pendientes
+            </button>
+            <button id="btn_vista_ACTIVOS" type="button" class="btn btn-sm btn-primary btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('ACTIVOS')">
+                <i class="fa-solid fa-truck-fast"></i> En Ruta
+            </button>
+            <button id="btn_vista_FINALIZADOS" type="button" class="btn btn-sm btn-outline-primary bg-white btn-filtro-vista fw-bold" onclick="cambiarVistaViajes('FINALIZADOS')">
+                <i class="fa-solid fa-flag-checkered"></i> Finalizados
+            </button>
         </div>
 
         <div class="btn-action-group d-flex align-items-center">
