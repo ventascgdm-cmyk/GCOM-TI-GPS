@@ -590,23 +590,37 @@ function pintarGeocercasEnMapa() {
             
             let shape;
             
-            // CORRECCIÓN CLAVE: usar == en vez de === por si viene como "3" (string)
-            if(z.t == 3 && z.p && z.p[0]) {
-                shape = L.circle([z.p[0].y, z.p[0].x], {
-                    radius: z.p[0].r, color: colorHex, weight: 3, fillOpacity: 0.2
-                });
-            } 
-            else if(z.t == 2 && z.p) { 
-                shape = L.polygon(z.p.map(pt => [pt.y, pt.x]), {
+            // Intentar extraer los puntos de las propiedades más comunes de Wialon
+            let puntos = z.p || z.b || z.po; 
+
+            if(z.t == 3 && puntos && puntos.length > 0) {
+                // TIPO 3: Círculo
+                let centro = puntos[0];
+                shape = L.circle([centro.y, centro.x], {
+                    radius: centro.r || z.r || 100, // Fallback a 100 metros si no hay radio
                     color: colorHex, weight: 3, fillOpacity: 0.2
                 });
+            } 
+            else if(z.t == 2 && puntos && puntos.length > 0) { 
+                // TIPO 2: Polígono
+                
+                // Limpiar los puntos para asegurarse de que existan x e y
+                let coordsValidas = puntos.filter(pt => pt && pt.y && pt.x).map(pt => [pt.y, pt.x]);
+                
+                if (coordsValidas.length > 2) { // Un polígono necesita al menos 3 puntos
+                    shape = L.polygon(coordsValidas, {
+                        color: colorHex, weight: 3, fillOpacity: 0.2
+                    });
+                } else {
+                    console.warn(`Polígono ${z.n} ignorado: Puntos insuficientes.`, puntos);
+                }
             }
             
             if(shape) {
                 shape.bindTooltip(txtLabel, { permanent: true, direction: 'top', className: cssClass }).addTo(geofenceLayerGroup);
                 pintadas++;
             } else {
-                console.warn(`Error al intentar dibujar ${z.n}. No se detectaron coordenadas válidas. Datos:`, z.p);
+                console.warn(`Error al intentar dibujar ${z.n}. Coordenadas:`, puntos);
             }
         }
     });
