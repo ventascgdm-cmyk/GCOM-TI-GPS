@@ -533,6 +533,10 @@ function actualizarMarcadoresMapa() {
 
 function pintarGeocercasEnMapa() {
     if(!lmap || !geofenceLayerGroup) return; 
+
+    // AGREGA ESTAS DOS LÍNEAS AQUÍ:
+    console.log("Total de geocercas activas en viajes:", Object.keys(viajesActivos).length);
+    console.log("Total de geocercas en geocercasNativas:", geocercasNativas.length);
     
     // 1. Limpiamos el mapa
     geofenceLayerGroup.clearLayers();
