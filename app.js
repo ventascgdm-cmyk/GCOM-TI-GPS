@@ -534,13 +534,14 @@ function actualizarMarcadoresMapa() {
 function pintarGeocercasEnMapa() {
     if(!lmap || !geofenceLayerGroup) return; 
     
-    // 1. Limpiamos las geocercas anteriores
+    // 1. Limpiamos el mapa
     geofenceLayerGroup.clearLayers();
     
     let geocercasActivas = {};
     
-    // 2. Extraemos todos los orígenes y destinos de los viajes que están en curso
-    Object.values(viajesActivos).forEach(v => {
+    // 2. Extraemos Orígenes, Destinos y la UBICACIÓN ACTUAL
+    Object.keys(viajesActivos).forEach(vId => {
+        let v = viajesActivos[vId];
         if(typeof v !== 'object' || !v) return;
         
         // Guardamos el origen
@@ -548,25 +549,44 @@ function pintarGeocercasEnMapa() {
             geocercasActivas[limpiarStr(v.origen)] = "origen";
         }
         
-        // Guardamos los destinos (soportando múltiples)
+        // Guardamos los destinos
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
         arrDests.forEach(d => {
             if(d) geocercasActivas[limpiarStr(d)] = "destino";
         });
+
+        // LA CLAVE: Guardamos la geocerca actual donde está el camión (Ej. CEDIS TONALA)
+        let uData = encontrarUnidad(v, vId);
+        if (uData && uData.zonaOficial) {
+            let zonaActualStr = limpiarStr(uData.zonaOficial);
+            // Solo le ponemos tipo "actual" si no estaba ya registrada como origen o destino
+            if (!geocercasActivas[zonaActualStr]) {
+                geocercasActivas[zonaActualStr] = "actual";
+            }
+        }
     });
 
-    // 3. Cruzamos las geocercas de Wialon con las que están activas en los viajes
+    // 3. Pintamos cruzando con los datos de Wialon
     geocercasNativas.forEach(z => {
         let nombreLimpio = limpiarStr(z.n);
         
-        // Si la geocerca de Wialon está en nuestra lista de activas, la pintamos
         if(geocercasActivas[nombreLimpio]) {
-            let isOrigen = geocercasActivas[nombreLimpio] === "origen";
+            let tipo = geocercasActivas[nombreLimpio];
             
-            // Origen en verde oscuro, Destino en rojo
-            let colorHex = isOrigen ? '#15803d' : '#b91c1c';
-            let txtLabel = isOrigen ? `📍 ORIGEN: ${z.n}` : `🏁 DESTINO: ${z.n}`;
-            let cssClass = isOrigen ? 'geocerca-tooltip origen' : 'geocerca-tooltip destino';
+            // Asignamos colores según su rol
+            let colorHex = '#0284c7'; // Azul por defecto (si solo está ahí estacionado)
+            let txtLabel = `📍 Unidad en: ${z.n}`;
+            let cssClass = 'geocerca-tooltip';
+
+            if (tipo === "origen") {
+                colorHex = '#15803d'; // Verde oscuro
+                txtLabel = `📍 ORIGEN: ${z.n}`;
+                cssClass = 'geocerca-tooltip origen';
+            } else if (tipo === "destino") {
+                colorHex = '#b91c1c'; // Rojo
+                txtLabel = `🏁 DESTINO: ${z.n}`;
+                cssClass = 'geocerca-tooltip destino';
+            }
             
             let shape;
             
@@ -579,7 +599,7 @@ function pintarGeocercasEnMapa() {
                     fillOpacity: 0.2
                 });
             } 
-            // TIPO 2: Polígono (Ignoramos el t === 1 que son líneas)
+            // TIPO 2: Polígono
             else if(z.t === 2 && z.p) { 
                 shape = L.polygon(z.p.map(pt => [pt.y, pt.x]), {
                     color: colorHex, 
@@ -588,13 +608,14 @@ function pintarGeocercasEnMapa() {
                 });
             }
             
-            // Agregamos la geocerca al mapa con su etiqueta siempre visible
+            // Agregamos al mapa
             if(shape) {
                 shape.bindTooltip(txtLabel, { permanent: true, direction: 'top', className: cssClass }).addTo(geofenceLayerGroup);
             }
         }
     });
 }
+
 // ============================================================================
 // PARTE 2: HUBS DE AUDITORÍA, ACCIONES SECUNDARIAS, WHATSAPP Y CAPTURAS
 // ============================================================================
