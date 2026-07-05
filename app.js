@@ -2708,14 +2708,11 @@ async function sincronizarFlotas() {
                 
                 let autoLoginUrl = `${tk.url.includes("hst-api") ? "https://hosting.wialon.com" : tk.url}/login.html?token=${tk.token}`; 
                 
-                // =====================================================================
-                // 🔥 AQUÍ ESTÁ EL CAMBIO: 
-                // Sumamos 1073741824 a tus flags para forzar a Wialon a entregar los puntos (x, y)
-                // =====================================================================
+                // 1. Buscamos los Recursos con sus Zonas (solo metadatos)
                 let reqR = await peticionWialon(tk.url, "core/search_items", { 
                     spec: {itemsType: "avl_resource", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, 
                     force: 1, 
-                    flags: 1 + 256 + 4096 + 1073741824, 
+                    flags: 1 + 256 + 4096, 
                     from: 0, 
                     to: 4294967295 
                 }, auth.sid); 
@@ -2732,11 +2729,11 @@ async function sincronizarFlotas() {
                         
                         if(r.zl) { 
                             Object.values(r.zl).forEach(z => { 
-                                // Ignorar geocercas de tipo lineal (t === 1) desde la consulta directa a Wialon
                                 if (z.t !== 1) {
                                     diccZonasReq[rId].push(z.id); 
                                     diccZonasNombres[rId][z.id] = z.n; 
-                                    tempGeo.push(z); 
+                                    // Guardamos el resourceId temporalmente para ligarlo
+                                    tempGeo.push({ ...z, resourceId: rId }); 
                                 }
                             }); 
                         }
@@ -2756,6 +2753,35 @@ async function sincronizarFlotas() {
                     }); 
                 } 
                 
+                // ====================================================================
+                // 🔥 SOLUCIÓN REAL: PEDIR LOS VÉRTICES (PUNTOS) DE CADA POLÍGONO ENCONTRADO
+                // ====================================================================
+                let promsZonas = [];
+                for (let rId in diccZonasReq) {
+                    if (diccZonasReq[rId].length > 0) {
+                        promsZonas.push(
+                            peticionWialon(tk.url, "resource/get_zone_data", { 
+                                itemId: parseInt(rId), 
+                                col: diccZonasReq[rId], 
+                                flags: 24 // 16 (propiedades) + 8 (arreglo 'p' con puntos)
+                            }, auth.sid).then(zonaData => {
+                                if (zonaData && Array.isArray(zonaData)) {
+                                    zonaData.forEach(zd => {
+                                        // Buscamos la geocerca en nuestro arreglo global y le inyectamos la propiedad 'p'
+                                        let miZ = tempGeo.find(g => g.id == zd.id && g.resourceId == rId);
+                                        if (miZ) {
+                                            miZ.p = zd.p; 
+                                        }
+                                    });
+                                }
+                            }).catch(e => console.error("Error al descargar coordenadas:", e))
+                        );
+                    }
+                }
+                // Esperamos a que Wialon regrese los puntos de todas las geocercas
+                await Promise.all(promsZonas); 
+                // ====================================================================
+
                 let reqU = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_unit", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 1024, from: 0, to: 4294967295 }, auth.sid); 
                 
                 if(reqU && reqU.items) { 
@@ -2831,22 +2857,3 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
