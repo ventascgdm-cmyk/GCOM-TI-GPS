@@ -6,7 +6,7 @@ const firebaseConfig = { databaseURL: "https://monitoreo-logistica-default-rtdb.
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// --- NOTIFICACIONES DEL SISTEMA ---..
+// --- NOTIFICACIONES DEL SISTEMA ---
 function mostrarNotificacion(msg) {
     document.getElementById('sysToastBody').innerText = msg;
     new bootstrap.Toast(document.getElementById('sysToast')).show();
