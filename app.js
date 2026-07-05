@@ -533,31 +533,62 @@ function actualizarMarcadoresMapa() {
 
 function pintarGeocercasEnMapa() {
     if(!lmap || !geofenceLayerGroup) return; 
+    
+    // 1. Limpiamos las geocercas anteriores
     geofenceLayerGroup.clearLayers();
     
     let geocercasActivas = {};
     
+    // 2. Extraemos todos los orígenes y destinos de los viajes que están en curso
     Object.values(viajesActivos).forEach(v => {
         if(typeof v !== 'object' || !v) return;
-        if(v.origen) geocercasActivas[limpiarStr(v.origen)] = "origen";
+        
+        // Guardamos el origen
+        if(v.origen) {
+            geocercasActivas[limpiarStr(v.origen)] = "origen";
+        }
+        
+        // Guardamos los destinos (soportando múltiples)
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
-        arrDests.forEach(d => geocercasActivas[d] = "destino");
+        arrDests.forEach(d => {
+            if(d) geocercasActivas[limpiarStr(d)] = "destino";
+        });
     });
 
+    // 3. Cruzamos las geocercas de Wialon con las que están activas en los viajes
     geocercasNativas.forEach(z => {
-        let uName = limpiarStr(z.n);
-        if(geocercasActivas[uName]) {
-            let isOrigen = geocercasActivas[uName] === "origen";
+        let nombreLimpio = limpiarStr(z.n);
+        
+        // Si la geocerca de Wialon está en nuestra lista de activas, la pintamos
+        if(geocercasActivas[nombreLimpio]) {
+            let isOrigen = geocercasActivas[nombreLimpio] === "origen";
+            
+            // Origen en verde oscuro, Destino en rojo
             let colorHex = isOrigen ? '#15803d' : '#b91c1c';
             let txtLabel = isOrigen ? `📍 ORIGEN: ${z.n}` : `🏁 DESTINO: ${z.n}`;
             let cssClass = isOrigen ? 'geocerca-tooltip origen' : 'geocerca-tooltip destino';
             
             let shape;
+            
+            // TIPO 3: Círculo
             if(z.t === 3 && z.p && z.p[0]) {
-                shape = L.circle([z.p[0].y, z.p[0].x], {radius: z.p[0].r, color: colorHex, weight: 3, fillOpacity: 0.2});
-            } else if(z.t === 2 && z.p) { // <-- Se eliminó z.t === 1 para no pintar líneas
-                shape = L.polygon(z.p.map(pt => [pt.y, pt.x]), {color: colorHex, weight: 3, fillOpacity: 0.2});
+                shape = L.circle([z.p[0].y, z.p[0].x], {
+                    radius: z.p[0].r, 
+                    color: colorHex, 
+                    weight: 3, 
+                    fillOpacity: 0.2
+                });
+            } 
+            // TIPO 2: Polígono (Ignoramos el t === 1 que son líneas)
+            else if(z.t === 2 && z.p) { 
+                shape = L.polygon(z.p.map(pt => [pt.y, pt.x]), {
+                    color: colorHex, 
+                    weight: 3, 
+                    fillOpacity: 0.2
+                });
             }
+            
+            // Agregamos la geocerca al mapa con su etiqueta siempre visible
             if(shape) {
                 shape.bindTooltip(txtLabel, { permanent: true, direction: 'top', className: cssClass }).addTo(geofenceLayerGroup);
             }
