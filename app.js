@@ -2694,7 +2694,18 @@ async function sincronizarFlotas() {
                 
                 let autoLoginUrl = `${tk.url.includes("hst-api") ? "https://hosting.wialon.com" : tk.url}/login.html?token=${tk.token}`; 
                 
-                let reqR = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_resource", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 256 + 4096, from: 0, to: 4294967295 }, auth.sid); 
+                // =====================================================================
+                // 🔥 AQUÍ ESTÁ EL CAMBIO: 
+                // Sumamos 1073741824 a tus flags para forzar a Wialon a entregar los puntos (x, y)
+                // =====================================================================
+                let reqR = await peticionWialon(tk.url, "core/search_items", { 
+                    spec: {itemsType: "avl_resource", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, 
+                    force: 1, 
+                    flags: 1 + 256 + 4096 + 1073741824, 
+                    from: 0, 
+                    to: 4294967295 
+                }, auth.sid); 
+                
                 let diccChoferes = {}; 
                 let diccZonasReq = {}; 
                 let diccZonasNombres = {}; 
@@ -2706,15 +2717,15 @@ async function sincronizarFlotas() {
                         diccZonasNombres[rId] = {}; 
                         
                         if(r.zl) { 
-                        Object.values(r.zl).forEach(z => { 
-                            // Ignorar geocercas de tipo lineal (t === 1) desde la consulta directa a Wialon
-                            if (z.t !== 1) {
-                                diccZonasReq[rId].push(z.id); 
-                                diccZonasNombres[rId][z.id] = z.n; 
-                                tempGeo.push(z); 
-                            }
-                        }); 
-                    }
+                            Object.values(r.zl).forEach(z => { 
+                                // Ignorar geocercas de tipo lineal (t === 1) desde la consulta directa a Wialon
+                                if (z.t !== 1) {
+                                    diccZonasReq[rId].push(z.id); 
+                                    diccZonasNombres[rId][z.id] = z.n; 
+                                    tempGeo.push(z); 
+                                }
+                            }); 
+                        }
                         
                         if(r.drvrs || r.drv) { 
                             let drivers = r.drvrs || r.drv; 
@@ -2806,7 +2817,6 @@ async function sincronizarFlotas() {
         isSyncingFlotas = false; 
     }
 }
-
 
 
 
