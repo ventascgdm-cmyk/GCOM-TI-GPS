@@ -12,7 +12,7 @@ function mostrarNotificacion(msg) {
     new bootstrap.Toast(document.getElementById('sysToast')).show();
 }
 
-// --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---..
+// --- CONTROL DE PARPADEOS EN UI Y FIX DE MENÚS ENCIMADOS ---
 let UI_PAUSED = false;
 
 // --- CONTROL DE VISTAS DE LA BITÁCORA Y BADGES ---
