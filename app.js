@@ -532,92 +532,86 @@ function actualizarMarcadoresMapa() {
 }
 
 function pintarGeocercasEnMapa() {
-    if(!lmap || !geofenceLayerGroup) return; 
-
-    // AGREGA ESTAS DOS LÍNEAS AQUÍ:
-    console.log("Total de geocercas activas en viajes:", Object.keys(viajesActivos).length);
-    console.log("Total de geocercas en geocercasNativas:", geocercasNativas.length);
+    if(!lmap) return; 
     
-    // 1. Limpiamos el mapa
+    // 1. FORZAR QUE LA CAPA EXISTA Y ESTÉ EN EL MAPA
+    if(typeof geofenceLayerGroup === 'undefined' || !geofenceLayerGroup) {
+        window.geofenceLayerGroup = L.featureGroup().addTo(lmap);
+    } else if (!lmap.hasLayer(geofenceLayerGroup)) {
+        geofenceLayerGroup.addTo(lmap); // Si la capa se desconectó, la reconectamos
+    }
+    
     geofenceLayerGroup.clearLayers();
     
     let geocercasActivas = {};
     
-    // 2. Extraemos Orígenes, Destinos y la UBICACIÓN ACTUAL
+    // 2. Extraer activas
     Object.keys(viajesActivos).forEach(vId => {
         let v = viajesActivos[vId];
         if(typeof v !== 'object' || !v) return;
         
-        // Guardamos el origen
-        if(v.origen) {
-            geocercasActivas[limpiarStr(v.origen)] = "origen";
-        }
+        if(v.origen) geocercasActivas[limpiarStr(v.origen)] = "origen";
         
-        // Guardamos los destinos
         let arrDests = Array.isArray(v.destinos) ? v.destinos : (v.destino ? String(v.destino).split(/,|\n/).map(d => limpiarStr(d)) : []);
         arrDests.forEach(d => {
             if(d) geocercasActivas[limpiarStr(d)] = "destino";
         });
 
-        // LA CLAVE: Guardamos la geocerca actual donde está el camión (Ej. CEDIS TONALA)
         let uData = encontrarUnidad(v, vId);
         if (uData && uData.zonaOficial) {
             let zonaActualStr = limpiarStr(uData.zonaOficial);
-            // Solo le ponemos tipo "actual" si no estaba ya registrada como origen o destino
             if (!geocercasActivas[zonaActualStr]) {
                 geocercasActivas[zonaActualStr] = "actual";
             }
         }
     });
 
-    // 3. Pintamos cruzando con los datos de Wialon
+    console.log("Diccionario de geocercas que deberían pintarse:", geocercasActivas);
+
+    let pintadas = 0;
+
+    // 3. Dibujar
     geocercasNativas.forEach(z => {
         let nombreLimpio = limpiarStr(z.n);
         
         if(geocercasActivas[nombreLimpio]) {
-            let tipo = geocercasActivas[nombreLimpio];
+            console.log(`¡Match encontrado! Preparando para pintar: ${z.n} (Tipo Wialon: ${z.t})`);
             
-            // Asignamos colores según su rol
-            let colorHex = '#0284c7'; // Azul por defecto (si solo está ahí estacionado)
+            let tipo = geocercasActivas[nombreLimpio];
+            let colorHex = '#0284c7'; 
             let txtLabel = `📍 Unidad en: ${z.n}`;
             let cssClass = 'geocerca-tooltip';
 
             if (tipo === "origen") {
-                colorHex = '#15803d'; // Verde oscuro
-                txtLabel = `📍 ORIGEN: ${z.n}`;
-                cssClass = 'geocerca-tooltip origen';
+                colorHex = '#15803d'; txtLabel = `📍 ORIGEN: ${z.n}`; cssClass = 'geocerca-tooltip origen';
             } else if (tipo === "destino") {
-                colorHex = '#b91c1c'; // Rojo
-                txtLabel = `🏁 DESTINO: ${z.n}`;
-                cssClass = 'geocerca-tooltip destino';
+                colorHex = '#b91c1c'; txtLabel = `🏁 DESTINO: ${z.n}`; cssClass = 'geocerca-tooltip destino';
             }
             
             let shape;
             
-            // TIPO 3: Círculo
-            if(z.t === 3 && z.p && z.p[0]) {
+            // CORRECCIÓN CLAVE: usar == en vez de === por si viene como "3" (string)
+            if(z.t == 3 && z.p && z.p[0]) {
                 shape = L.circle([z.p[0].y, z.p[0].x], {
-                    radius: z.p[0].r, 
-                    color: colorHex, 
-                    weight: 3, 
-                    fillOpacity: 0.2
+                    radius: z.p[0].r, color: colorHex, weight: 3, fillOpacity: 0.2
                 });
             } 
-            // TIPO 2: Polígono
-            else if(z.t === 2 && z.p) { 
+            else if(z.t == 2 && z.p) { 
                 shape = L.polygon(z.p.map(pt => [pt.y, pt.x]), {
-                    color: colorHex, 
-                    weight: 3, 
-                    fillOpacity: 0.2
+                    color: colorHex, weight: 3, fillOpacity: 0.2
                 });
             }
             
-            // Agregamos al mapa
             if(shape) {
                 shape.bindTooltip(txtLabel, { permanent: true, direction: 'top', className: cssClass }).addTo(geofenceLayerGroup);
+                pintadas++;
+            } else {
+                console.warn(`Error al intentar dibujar ${z.n}. No se detectaron coordenadas válidas. Datos:`, z.p);
             }
         }
     });
+    
+    console.log(`Proceso terminado. Total de geocercas dibujadas en el mapa: ${pintadas}`);
 }
 
 // ============================================================================
