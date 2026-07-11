@@ -2670,7 +2670,11 @@ function renderStatusTokens() {
     let html = ""; 
     for(let tk in estadoTokens) { 
         let stat = estadoTokens[tk]; 
-        let badge = stat.status === 'OK' ? '<span class="badge bg-success shadow-sm">ONLINE</span>' : '<span class="badge bg-danger shadow-sm">OFFLINE</span>'; 
+        let badge = '';
+        if (stat.status === 'OK') badge = '<span class="badge bg-success shadow-sm">ONLINE</span>';
+        else if (stat.status === 'REINTENTANDO') badge = '<span class="badge bg-warning text-dark shadow-sm">RECONECTANDO</span>';
+        else badge = '<span class="badge bg-danger shadow-sm">OFFLINE</span>';
+        
         html += `<li class="list-group-item d-flex justify-content-between align-items-center p-2"><div class="fw-bold" style="font-size:0.8rem;">${tk}</div> <div><span class="badge bg-secondary me-2 shadow-sm">${stat.count} Unidades</span> ${badge}</div></li>`; 
     } 
     lista.innerHTML = html || '<li class="list-group-item text-center">No hay tokens</li>'; 
@@ -2702,13 +2706,11 @@ async function sincronizarFlotas() {
                 
                 let auth = activeSIDs[tk.token]; 
                 if(!auth || !auth.sid) { 
-                    estadoTokens[tk.nombre] = { status: 'ERR', count: 0 }; 
-                    return; 
+                    throw new Error("Sin SID válido"); // Forza el catch para rescatar datos
                 } 
                 
                 let autoLoginUrl = `${tk.url.includes("hst-api") ? "https://hosting.wialon.com" : tk.url}/login.html?token=${tk.token}`; 
                 
-                // 1. Buscamos los Recursos con sus Zonas (solo metadatos)
                 let reqR = await peticionWialon(tk.url, "core/search_items", { 
                     spec: {itemsType: "avl_resource", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, 
                     force: 1, 
@@ -2732,8 +2734,8 @@ async function sincronizarFlotas() {
                                 if (z.t !== 1) {
                                     diccZonasReq[rId].push(z.id); 
                                     diccZonasNombres[rId][z.id] = z.n; 
-                                    // Guardamos el resourceId temporalmente para ligarlo
-                                    tempGeo.push({ ...z, resourceId: rId }); 
+                                    // Agregamos tkNombre para poder rescatarlo luego
+                                    tempGeo.push({ ...z, resourceId: rId, tkNombre: tk.nombre }); 
                                 }
                             }); 
                         }
@@ -2742,7 +2744,8 @@ async function sincronizarFlotas() {
                             let drivers = r.drvrs || r.drv; 
                             Object.values(drivers).forEach(d => { 
                                 let telStr = d.p ? String(d.p) : ""; 
-                                let objC = { nombre: limpiarStr(d.n), tel: telStr, cod: d.c || "---", rid: rId, id: d.id };
+                                // Agregamos tkNombre para poder rescatarlo luego
+                                let objC = { nombre: limpiarStr(d.n), tel: telStr, cod: d.c || "---", rid: rId, id: d.id, tkNombre: tk.nombre };
                                 
                                 if(d.bu && d.bu > 0) { 
                                     diccChoferes[d.bu] = objC; 
@@ -2753,9 +2756,6 @@ async function sincronizarFlotas() {
                     }); 
                 } 
                 
-                // ====================================================================
-                // 🔥 SOLUCIÓN REAL: PEDIR LOS VÉRTICES (PUNTOS) DE CADA POLÍGONO ENCONTRADO
-                // ====================================================================
                 let promsZonas = [];
                 for (let rId in diccZonasReq) {
                     if (diccZonasReq[rId].length > 0) {
@@ -2763,24 +2763,19 @@ async function sincronizarFlotas() {
                             peticionWialon(tk.url, "resource/get_zone_data", { 
                                 itemId: parseInt(rId), 
                                 col: diccZonasReq[rId], 
-                                flags: 24 // 16 (propiedades) + 8 (arreglo 'p' con puntos)
+                                flags: 24
                             }, auth.sid).then(zonaData => {
                                 if (zonaData && Array.isArray(zonaData)) {
                                     zonaData.forEach(zd => {
-                                        // Buscamos la geocerca en nuestro arreglo global y le inyectamos la propiedad 'p'
                                         let miZ = tempGeo.find(g => g.id == zd.id && g.resourceId == rId);
-                                        if (miZ) {
-                                            miZ.p = zd.p; 
-                                        }
+                                        if (miZ) miZ.p = zd.p; 
                                     });
                                 }
-                            }).catch(e => console.error("Error al descargar coordenadas:", e))
+                            }).catch(e => console.error("Error coordenadas:", e))
                         );
                     }
                 }
-                // Esperamos a que Wialon regrese los puntos de todas las geocercas
                 await Promise.all(promsZonas); 
-                // ====================================================================
 
                 let reqU = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_unit", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 1024, from: 0, to: 4294967295 }, auth.sid); 
                 
@@ -2823,10 +2818,38 @@ async function sincronizarFlotas() {
                         listUni.add(n); 
                     }); 
                 } else { 
-                    estadoTokens[tk.nombre] = { status: 'ERR', count: 0 }; 
+                    throw new Error("Respuesta reqU vacía"); 
                 } 
             } catch(errTk) { 
-                console.error("Token Falló:", tk.nombre); 
+                console.warn(`Microcorte o fallo en token ${tk.nombre}:`, errTk); 
+                delete activeSIDs[tk.token]; // Limpiar sesión para forzar nuevo login
+                
+                // ==========================================
+                // FIX: RESCATE DE DATOS PREVIOS EN CACHÉ
+                // ==========================================
+                let countRescatados = 0;
+                
+                // 1. Rescatar unidades previas
+                Object.values(unidadesGlobales).forEach(u => {
+                    if (u.tkNombre === tk.nombre) {
+                        tempUnits[u.id] = u;
+                        listUni.add(u.name);
+                        countRescatados++;
+                    }
+                });
+
+                // 2. Rescatar geocercas
+                geocercasNativas.forEach(z => {
+                    if (z.tkNombre === tk.nombre) tempGeo.push(z);
+                });
+
+                // 3. Rescatar choferes
+                Object.values(diccChoferesGlobal).forEach(c => {
+                    if (c.tkNombre === tk.nombre) tempChoferes[c.nombre] = c;
+                });
+
+                estadoTokens[tk.nombre] = { status: 'REINTENTANDO', count: countRescatados }; 
+                if(countRescatados > 0) conexionesExitosas++; // Mantiene el sistema vivo visualmente
             } 
         }); 
         
