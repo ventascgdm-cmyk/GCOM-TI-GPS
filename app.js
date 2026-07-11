@@ -2235,54 +2235,54 @@ function inyectarGPSenTabla() {
                     let timeExtAgo = v.t_ubicacion_manual ? timeAgo(Math.floor(v.t_ubicacion_manual/1000)) : '--';
                     elGpsCell.innerHTML = `<div class="d-flex flex-column px-1 w-100"><div class="d-flex justify-content-between align-items-center border-bottom border-light pb-1 mb-1"><div class="d-flex align-items-center"><i class="fa-solid fa-globe text-info me-1 fs-6"></i> <span class="speed-badge bg-secondary m-0">-- km/h</span></div><div style="font-size:0.75rem; font-weight:900; cursor:help;" title="${timeExtHover}"><span class="text-info">Act: hace ${timeExtAgo}</span></div></div><div class="d-flex align-items-center gap-2 text-start"><span class="text-info fw-bold" style="font-size:0.65rem;">GPS EXTERNO</span><i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar" onclick="editarUbicacionManual('${vId}')"></i><div class="addr-container flex-grow-1">${v.ubicacion_manual||'--'}</div></div></div>`; 
                 } else if (isLost || isStale) { 
-    // Calcular tiempo de desconexión
-    let timeOfflineStr = (pos && pos.t) ? timeAgo(pos.t) : '--';
-    let geoKey = hasCoords ? `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}` : null;
-    let addrText = "";
-    let linkMaps = "";
-    
-    if (hasCoords) {
-        // Rescatar última dirección de caché
-        if (geocodeCache[geoKey]) {
-            addrText = `<i class="fa-solid fa-map-location-dot text-danger me-1"></i>${geocodeCache[geoKey]}`;
-        } else {
-            let ultimaDir = localStorage.getItem('tms_last_addr_' + vId);
-            if (ultimaDir) {
-                addrText = `<i class="fa-solid fa-map-location-dot text-danger me-1"></i>${ultimaDir}`;
-            } else {
-                addrText = `<i class="fa-solid fa-location-dot text-danger me-1"></i>Últ. Coord: ${pos.y.toFixed(4)}, ${pos.x.toFixed(4)}`;
-            }
-        }
-        linkMaps = `href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank"`;
-    } else {
-        addrText = `<span class="text-danger">Ubicación no disponible</span>`;
-        linkMaps = `href="#"`;
-    }
-
-    // Rescatar última geocerca si estaba dentro de una
-    let zonaGeo = hasCoords ? limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)) : ""; 
-    let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2 border-danger text-danger" style="max-width:150px; background:#fee2e2;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : '';
-
-    elGpsCell.innerHTML = `
-        <div class="d-flex flex-column px-1 w-100">
-            <div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1">
-                <div class="d-flex align-items-center">
-                    <i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> 
-                    <span class="speed-badge bg-secondary m-0" style="padding:2px 6px;">${speed} km/h</span> 
-                    ${geoHtml}
-                </div>
-                <div style="font-size:0.65rem; color:#ef4444; font-weight:900;" title="Tiempo sin reportar">
-                    Sin señal: ${timeOfflineStr}
-                </div>
-            </div>
-            <div class="d-flex align-items-center w-100">
-                <a ${linkMaps} class="addr-link text-start flex-grow-1" style="text-decoration: none;" title="Abrir última ubicación en Maps">
-                    <div class="addr-container text-danger" id="addr_${vId}">${addrText}</div>
-                </a>
-                <i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar manual" onclick="editarUbicacionManual('${vId}')"></i>
-            </div>
-        </div>`; 
-} else { 
+                    // Calcular tiempo de desconexión
+                    let timeOfflineStr = (pos && pos.t) ? timeAgo(pos.t) : '--';
+                    let geoKey = hasCoords ? `${pos.y.toFixed(4)}_${pos.x.toFixed(4)}` : null;
+                    let addrText = "";
+                    let linkMaps = "";
+                    
+                    if (hasCoords) {
+                        // Rescatar última dirección de caché
+                        if (geocodeCache[geoKey]) {
+                            addrText = `<i class="fa-solid fa-map-location-dot text-danger me-1"></i>${geocodeCache[geoKey]}`;
+                        } else {
+                            let ultimaDir = localStorage.getItem('tms_last_addr_' + vId);
+                            if (ultimaDir) {
+                                addrText = `<i class="fa-solid fa-map-location-dot text-danger me-1"></i>${ultimaDir}`;
+                            } else {
+                                addrText = `<i class="fa-solid fa-location-dot text-danger me-1"></i>Últ. Coord: ${pos.y.toFixed(4)}, ${pos.x.toFixed(4)}`;
+                            }
+                        }
+                        linkMaps = `href="https://www.google.com/maps?q=${pos.y},${pos.x}" target="_blank"`;
+                    } else {
+                        addrText = `<span class="text-danger">Ubicación no disponible</span>`;
+                        linkMaps = `href="#"`;
+                    }
+                
+                    // Rescatar última geocerca si estaba dentro de una
+                    let zonaGeo = hasCoords ? limpiarStr(uData.zonaOficial || resolverGeocerca(pos.y, pos.x)) : ""; 
+                    let geoHtml = zonaGeo ? `<span class="badge-geo text-truncate ms-2 border-danger text-danger" style="max-width:150px; background:#fee2e2;" title="${zonaGeo}"><i class="fa-solid fa-draw-polygon me-1"></i>${zonaGeo}</span>` : '';
+                
+                    elGpsCell.innerHTML = `
+                        <div class="d-flex flex-column px-1 w-100">
+                            <div class="d-flex justify-content-between align-items-center border-bottom border-danger pb-1 mb-1">
+                                <div class="d-flex align-items-center">
+                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1 fs-6"></i> 
+                                    <span class="speed-badge bg-secondary m-0" style="padding:2px 6px;">${speed} km/h</span> 
+                                    ${geoHtml}
+                                </div>
+                                <div style="font-size:0.65rem; color:#ef4444; font-weight:900;" title="Tiempo sin reportar">
+                                    Sin señal: ${timeOfflineStr}
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center w-100">
+                                <a ${linkMaps} class="addr-link text-start flex-grow-1" style="text-decoration: none;" title="Abrir última ubicación en Maps">
+                                    <div class="addr-container text-danger" id="addr_${vId}">${addrText}</div>
+                                </a>
+                                <i class="fa-solid fa-pencil ms-2 text-primary cp" title="Editar manual" onclick="editarUbicacionManual('${vId}')"></i>
+                            </div>
+                        </div>`; 
+                } else { 
                     let speedBg = "#64748b"; 
                     if(speed > 0 && speed < 100) speedBg = "#10b981"; 
                     if(speed >= 100) speedBg = "#ef4444"; 
@@ -2838,7 +2838,7 @@ async function sincronizarFlotas() {
                         activeSIDs[tk.token] = { sid: nuevoLogin.eid };
                         
                         // 3. Reintentamos la petición original con el SID nuevo
-                        reqU = await peticionWialon(tk.url, "core/search_items", {...}, nuevoLogin.eid);
+                        reqU = await peticionWialon(tk.url, "core/search_items", { spec: {itemsType: "avl_unit", propName: "sys_name", propValueMask: "*", sortType: "sys_name"}, force: 1, flags: 1 + 1024, from: 0, to: 4294967295 }, nuevoLogin.eid);
                     }
                 }
                 
